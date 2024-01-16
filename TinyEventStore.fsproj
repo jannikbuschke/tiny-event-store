@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include=".editorconfig" />
+    <Compile Include="AsyncEventSourcing.fs" />
     <Compile Include="EventSourcing.fs" />
     <PackageReference Include="FsToolkit.ErrorHandling" Version="4.10.0" />
     <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="4.10.0" />
