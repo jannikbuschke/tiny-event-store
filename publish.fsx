@@ -56,14 +56,14 @@ let deleteBinfolder () =
 let restore () = run "dotnet" "restore" |> ignore
 
 let pack () =
-  if run "dotnet" "pack .\\src\\TinyEventStore.fsproj" = 0 then
+  if run "dotnet" "pack .\\src\\TinyEventStore\\TinyEventStore.fsproj" = 0 then
     ()
   else
     exit -1
 
 let publish () =
   let files =
-    System.IO.Directory.EnumerateFiles(".\\src\\bin\\Release", "TinyEventStore.*.nupkg")
+    System.IO.Directory.EnumerateFiles(".\\src\\TinyEventStore\\bin\\Release", "TinyEventStore.*.nupkg")
 
   printfn "%A" files
   files |> Seq.iter publishfile

@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "TinyEventStore", "src\TinyEventStore.fsproj", "{6C31E7E7-4003-403C-9D9F-66400E6B9504}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "TinyEventStore", "src\TinyEventStore\TinyEventStore.fsproj", "{6C31E7E7-4003-403C-9D9F-66400E6B9504}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "TinyEventStore.Ef", "src\TinyEventStore.Ef\TinyEventStore.Ef.fsproj", "{C37001A6-ED56-4234-940E-16F5E6139122}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,5 +20,9 @@ Global
 		{6C31E7E7-4003-403C-9D9F-66400E6B9504}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6C31E7E7-4003-403C-9D9F-66400E6B9504}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6C31E7E7-4003-403C-9D9F-66400E6B9504}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C37001A6-ED56-4234-940E-16F5E6139122}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C37001A6-ED56-4234-940E-16F5E6139122}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C37001A6-ED56-4234-940E-16F5E6139122}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C37001A6-ED56-4234-940E-16F5E6139122}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
