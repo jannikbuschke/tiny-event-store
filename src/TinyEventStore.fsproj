@@ -15,9 +15,7 @@
 
     <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\"/>
-        <Compile Include="AsyncEventSourcing.fs"/>
-        <Compile Include="AsyncEventSourcing2.fs" />
-        <Compile Include="EventSourcing.fs"/>
+        <Compile Include="AsyncEventSourcing.fs" />
         <PackageReference Include="FsToolkit.ErrorHandling" Version="4.10.0"/>
         <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="4.10.0"/>
     </ItemGroup>
