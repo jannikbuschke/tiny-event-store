@@ -21,8 +21,10 @@
         <Compile Include="Invoices\Test.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
-        <Compile Include=".env.local" />
         <Compile Include="Program.fs" />
+        <Content Include=".env.local">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>

@@ -92,5 +92,4 @@ type Address =
     City: string
     Zip: string }
 
-
 type SideEffect = SendInvoiceEmail of Email * Invoice

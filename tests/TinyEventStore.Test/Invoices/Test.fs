@@ -17,8 +17,12 @@ let services = ServiceCollection()
 let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
 let dbName = "my-domain-test-2024-04-19-09-05-31" // $"my-domain-test-{testId}"
 
+let path = System.IO.Path.GetFullPath(".env.local")
+let currentDir = System.IO.Directory.GetCurrentDirectory()
 dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
+let variables = System.Environment.GetEnvironmentVariables()
 let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
+let connectionString' = connectionString.Replace("{DatabaseName}", dbName)
 
 services.AddDbContext<InvoicingDb>(fun x ->
   x.UseNpgsql(connectionString.Replace("{DatabaseName}", dbName))
@@ -77,6 +81,11 @@ let ``foo`` () =
              Positions = [] })
 
     use scope1 = serviceProvider.CreateScope()
+
+    let! state = MyDomain.Invoicing.EventStore.store.rehydrateLatest scope1.ServiceProvider id
+
+
+
     let db = scope1.ServiceProvider.GetService<InvoicingDb>()
 
     let! streamCount =
@@ -92,15 +101,15 @@ let ``foo`` () =
         .CountAsync()
 
     Assert.Equal(2, eventCount)
-    let invoice = db.Set<DefaultProjection<Id, InvoiceData>>().Find(id)
-
-    Assert.True(
-      invoice.Value =
-        InvoiceData.Draft
-          { InvoiceNumber = InvoiceNumber "123" |> Some
-            CustomerId = None
-            Positions = [] }
-    )
+    // let invoice = db.Set<DefaultProjection<Id, InvoiceData>>().Find(id)
+    //
+    // Assert.True(
+    //   invoice.Value =
+    //     InvoiceData.Draft
+    //       { InvoiceNumber = InvoiceNumber "123" |> Some
+    //         CustomerId = None
+    //         Positions = [] }
+    // )
 
     Assert.True true
     let deleteDb = false

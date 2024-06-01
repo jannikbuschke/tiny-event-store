@@ -1,6 +1,5 @@
 ﻿module MyDomain.Invoicing.CommandHandler
 
-
 open System
 open Microsoft.AspNetCore.Http
 open MyDomain
@@ -9,6 +8,7 @@ open MyDomain.Invoicing.Db
 open MyDomain.Invoicing.Projections
 open TinyEventStore
 open FsToolkit.ErrorHandling
+open Microsoft.Extensions.DependencyInjection
 
 type Command = MyDomain.Invoicing.Core.Command
 type CommandEnvelope = CommandEnvelope<Guid, Command>
@@ -46,27 +46,23 @@ let finaliseDraft (draft: InvoiceDraft) : Result<Invoice, string> =
       { Invoice.InvoiceNumber = number
         CustomerId = customerId
         CustomerName = ""
-
         Positions = positions }
   }
 
-open Microsoft.Extensions.DependencyInjection
-
-let decide (ctx: IServiceProvider) : Decide<State, Command, Event, EventHeader, SideEffect> =
+let decide: PureDecide<Id, State, Command, Event, EventHeader, SideEffect> =
   // TODO: get from auth
   let userId = UserId.New()
 
-  fun (state: State) (command: Command) ->
-    let db = ctx.GetService<InvoicingDb>()
+  fun (state) (command) ->
     let header: EventHeader = { UserId = userId }
 
-    match command with
-    | Command.CreateDraft draft -> taskResult { return ([ Event.DraftCreated draft, header ], []) }
-    | Command.UpdateDraft draft -> taskResult { return ([ Event.DraftUpdated draft, header ], []) }
+    match command.Payload with
+    | Command.UpdateDraft draft -> Result.Ok([ Event.DraftUpdated draft, header ], [])
+    | Command.CreateDraft draft -> Result.Ok([ Event.DraftCreated draft, header ], [])
     | Command.Finalize ->
       match state with
       | InvoiceData.Draft draft ->
-        taskResult {
+        result {
           let! invoice = finaliseDraft draft
           return ([ Event.Finalized invoice, header ], [])
         }
