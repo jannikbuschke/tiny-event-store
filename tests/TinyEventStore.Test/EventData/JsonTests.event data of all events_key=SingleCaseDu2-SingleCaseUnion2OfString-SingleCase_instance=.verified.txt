@@ -1,0 +1,6 @@
+﻿{
+  "Case": "SingleCase",
+  "Fields": {
+    "Item": "value"
+  }
+}

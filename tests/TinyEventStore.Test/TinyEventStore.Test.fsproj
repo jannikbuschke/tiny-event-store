@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="8.4.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Invoices\Invoice.fs" />
+        <Compile Include="Invoices\InvoiceProjections.fs" />
+        <Compile Include="Invoices\InvoiceDb.fs" />
+        <Compile Include="Invoices\InvoiceCommandHandler.fs" />
+        <Compile Include="Invoices\InvoicingEventStore.fs" />
+        <Compile Include="Invoices\Test.fs" />
+        <Compile Include="Creator.fs" />
+        <Compile Include="JsonTests.fs" />
+        <Compile Include=".env.local" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="coverlet.collector" Version="6.0.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+        <PackageReference Include="xunit" Version="2.7.1" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+        <PackageReference Include="Verify.DiffPlex" Version="3.0.0" />
+        <PackageReference Include="Verify.Xunit" Version="24.1.0" />
+        <PackageReference Include="dotenv.net" Version="3.1.3" />
+
+    </ItemGroup>
+
+    <ItemGroup>
+<!--        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">-->
+<!--            <PrivateAssets>all</PrivateAssets>-->
+<!--            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>-->
+<!--        </PackageReference>-->
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.*"/>
+<!--        <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.*"/>-->
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Serilog" Version="2.9.0" />
+        <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
+        <PackageReference Include="Serilog.Settings.Configuration" Version="3.1.0" />
+<!--        <PackageReference Include="Serilog.Sinks.Async" Version="1.4.0"/>-->
+<!--        <PackageReference Include="Serilog.AspNetCore" Version="3.2.0"/>-->
+<!--        <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1"/>-->
+        <PackageReference Include="Serilog.Sinks.Seq" Version="4.0.0" />
+        <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\TinyEventStore.Ef\TinyEventStore.Ef.fsproj" />
+      <ProjectReference Include="..\..\src\TinyEventStore\TinyEventStore.fsproj" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+﻿{
+  "Case": "MutiCaseWithOption",
+  "Fields": {
+    "Item1": "value",
+    "Item2": null,
+    "Item3": 42
+  }
+}

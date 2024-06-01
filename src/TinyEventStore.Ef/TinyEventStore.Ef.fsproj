@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Version>0.21.0</Version>
+        <Authors>Jannik Buschke</Authors>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PackageId>TinyEventStore.Ef</PackageId>
+        <RootNamespace>TinyEventStore.Ef</RootNamespace>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Title>TinyEventStore.Ef</Title>
+        <Description>TinyEventStore does the thing!</Description>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <Optimize>true</Optimize>
+        <Tailcalls>true</Tailcalls>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Json.fs" />
+        <Compile Include="Core.fs" />
+        <Compile Include="EfPureEventStore.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    </ItemGroup>
+
+<!--    <ItemGroup>-->
+<!--        <PackageReference Include="FSharp.SystemTextJson" Version="1.2.42"/>-->
+<!--    </ItemGroup>-->
+
+<!--    <ItemGroup>-->
+<!--        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.2">-->
+<!--            <PrivateAssets>all</PrivateAssets>-->
+<!--            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>-->
+<!--        </PackageReference>-->
+<!--    </ItemGroup>-->
+
+    <ItemGroup>
+        <Compile Include="EfEventStore.fs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\TinyEventStore\TinyEventStore.fsproj"/>
+    </ItemGroup>
+
+    <Import Project="..\..\.paket\Paket.Restore.targets"/>
+</Project>

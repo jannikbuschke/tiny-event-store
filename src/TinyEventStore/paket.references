@@ -1,0 +1,6 @@
+FSharp.Core
+Microsoft.SourceLink.GitHub
+FSharp.SystemTextJson
+Microsoft.Extensions.DependencyInjection
+FsToolkit.ErrorHandling
+FsToolkit.ErrorHandling.TaskResult

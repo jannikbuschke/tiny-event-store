@@ -1,0 +1,6 @@
+﻿{
+  "Case": "MultiCaseWithSkippable",
+  "Fields": {
+    "Item1": "value"
+  }
+}

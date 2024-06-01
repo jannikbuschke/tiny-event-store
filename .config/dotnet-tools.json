@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "dotnet-reportgenerator-globaltool": {
+      "version": "5.2.5",
+      "commands": [
+        "reportgenerator"
+      ]
+    },
+    "paket": {
+      "version": "8.0.3",
+      "commands": [
+        "paket"
+      ]
+    },
+    "fsharp-analyzers": {
+      "version": "0.25.0",
+      "commands": [
+        "fsharp-analyzers"
+      ]
+    },
+    "fantomas": {
+      "version": "6.3.4",
+      "commands": [
+        "fantomas"
+      ]
+    },
+    "fsdocs-tool": {
+      "version": "20.0.0",
+      "commands": [
+        "fsdocs"
+      ]
+    }
+  }
+}

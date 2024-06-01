@@ -1,0 +1,27 @@
+﻿{
+  "Case": "Finalized",
+  "Fields": {
+    "Item": {
+      "InvoiceNumber": {
+        "Case": "InvoiceNumber",
+        "Fields": {
+          "Item": "value"
+        }
+      },
+      "CustomerId": {
+        "Case": "CustomerId",
+        "Fields": {
+          "Item": "12345678-1234-1234-1234-123456781234"
+        }
+      },
+      "CustomerName": "value",
+      "Positions": [
+        {
+          "Description": "value",
+          "Quantity": 42,
+          "Price": 42
+        }
+      ]
+    }
+  }
+}

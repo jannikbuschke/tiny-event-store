@@ -1,0 +1,12 @@
+﻿{
+  "Case": "MultiCase",
+  "Fields": {
+    "Item1": "value",
+    "Item2": {
+      "Name": "value",
+      "Value": 42,
+      "Id": "12345678-1234-1234-1234-123456781234"
+    },
+    "Item3": 42
+  }
+}

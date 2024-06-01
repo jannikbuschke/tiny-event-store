@@ -1,0 +1,16 @@
+﻿{
+  "Case": "DraftCreated",
+  "Fields": {
+    "Item": {
+      "InvoiceNumber": null,
+      "CustomerId": null,
+      "Positions": [
+        {
+          "Description": null,
+          "Quantity": null,
+          "Price": null
+        }
+      ]
+    }
+  }
+}

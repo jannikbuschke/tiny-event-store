@@ -1,0 +1,12 @@
+﻿{
+  "Case": "MultiNamedCase",
+  "Fields": {
+    "Name": "value",
+    "Data": {
+      "Name": "value",
+      "Value": 42,
+      "Id": "12345678-1234-1234-1234-123456781234"
+    },
+    "Version": 42
+  }
+}

@@ -1,0 +1,6 @@
+﻿{
+  "Case": "Some",
+  "Fields": {
+    "Value": "value"
+  }
+}
