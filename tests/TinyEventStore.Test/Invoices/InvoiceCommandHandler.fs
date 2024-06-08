@@ -11,7 +11,7 @@ open FsToolkit.ErrorHandling
 open Microsoft.Extensions.DependencyInjection
 
 type Command = MyDomain.Invoicing.Core.Command
-type CommandEnvelope = CommandEnvelope<Guid, Command>
+type CommandEnvelope = CommandEnvelope<Guid, Command,unit>
 type Event = MyDomain.Invoicing.Core.Event
 type EventHeader = MyDomain.Invoicing.Core.EventHeader
 type SideEffect = MyDomain.Invoicing.Core.SideEffect
@@ -49,7 +49,7 @@ let finaliseDraft (draft: InvoiceDraft) : Result<Invoice, string> =
         Positions = positions }
   }
 
-let decide: PureDecide<Id, State, Command, Event, EventHeader, SideEffect> =
+let decide: PureDecide<Id, State, Command,unit, Event, EventHeader, SideEffect> =
   // TODO: get from auth
   let userId = UserId.New()
 

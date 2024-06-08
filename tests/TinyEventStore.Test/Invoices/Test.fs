@@ -15,17 +15,17 @@ open Serilog
 let services = ServiceCollection()
 
 let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
-let dbName = "my-domain-test-2024-04-19-09-05-31" // $"my-domain-test-{testId}"
+let dbName = "my-domain-test-2024-06-01-09-05-31" // $"my-domain-test-{testId}"
 
 let path = System.IO.Path.GetFullPath(".env.local")
 let currentDir = System.IO.Directory.GetCurrentDirectory()
 dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
 let variables = System.Environment.GetEnvironmentVariables()
 let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
-let connectionString' = connectionString.Replace("{DatabaseName}", dbName)
+let connectionString' = connectionString.Replace("{dbName}", dbName)
 
 services.AddDbContext<InvoicingDb>(fun x ->
-  x.UseNpgsql(connectionString.Replace("{DatabaseName}", dbName))
+  x.UseNpgsql(connectionString.Replace("{dbName}", dbName))
   |> ignore
 )
 |> ignore
@@ -83,8 +83,6 @@ let ``foo`` () =
     use scope1 = serviceProvider.CreateScope()
 
     let! state = MyDomain.Invoicing.EventStore.store.rehydrateLatest scope1.ServiceProvider id
-
-
 
     let db = scope1.ServiceProvider.GetService<InvoicingDb>()
 

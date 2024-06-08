@@ -9,8 +9,6 @@ open FsToolkit.ErrorHandling
 open Json
 open TinyEventStore.EfUtils
 
-
-
 let configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
   (modelBuilder: ModelBuilder)
   (tableName: string)
@@ -194,7 +192,7 @@ let genericLoadEvents<'id, 'event, 'header when 'id: equality> (db: DbContext) (
           { Stream.Id = id
             Version = 0u
             Created = DateTimeOffset.UtcNow
-            Events = System.Collections.Generic.List([]) }
+            Events = ResizeArray [] }
 
         stream
       else
@@ -246,10 +244,10 @@ let efCommandHandler<'id, 'state, 'command, 'event, 'header, 'sideEffect, 'Db wh
   let loadEvents = genericLoadEvents<'id, 'event, 'header>
   TinyEventStore.Store.makeCommandHandler zero evolve (executeCommand ctx) (loadEvents db)
 
-type EfStore<'id, 'state, 'command, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext> =
+type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext> =
   { decide:
       IServiceProvider
-        -> CommandEnvelope<'id, 'command>
+        -> CommandEnvelope<'id, 'command,'commandHeader>
         -> TaskResult<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>
     append:
       IServiceProvider
@@ -263,7 +261,7 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'sideEffect, 'Db when 'Db :
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (executeCommand: IServiceProvider -> Decide<'state, 'command, 'event, 'header, 'sideEffect>)
-  : EfStore<'id, 'state, 'command, 'event, 'header, 'sideEffect, 'Db> =
+  : EfStore<'id, 'state, 'command,'commandHeader, 'event, 'header, 'sideEffect, 'Db> =
 
   let rehydrateRaw = TinyEventStore.PureStore.rehydrate zero evolve
 

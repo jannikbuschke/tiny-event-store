@@ -63,7 +63,7 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
 
       let newStream =
         { oldStream with
-            Events = combinedEvents
+            Events = combinedEvents //|> Seq.toList
             Version = lastEvent.Version }
 
       let result: AppendEventsResult<'id, 'state, 'event, 'header> =
@@ -77,15 +77,13 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
       return result
     }
 
-
-
-let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'sideEffect>
+let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 'sideEffect>
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (executeCommand: Decide<'state, 'command, 'event, 'header, 'sideEffect>)
   (load: LoadStreamContainer<'id, 'event, 'header>)
-  : CommandEnvelope<'id, 'command> -> TaskResult<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string> =
-  fun (command: CommandEnvelope<'id, 'command>) ->
+  : CommandEnvelope<'id, 'command,'commandHeader> -> TaskResult<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string> =
+  fun (command: CommandEnvelope<'id, 'command,'commandHeader>) ->
     taskResult {
       let! oldStream = load command.StreamId
 
@@ -121,14 +119,14 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'sideEffect>
 
       let newState = newEvents |> List.fold evolve oldState
 
-      let lastEvent = newEvents |> List.last
+      let lastEvent = newEvents |> List.tryLast
 
       let combinedEvents = System.Collections.Generic.List(oldEvents @ newEvents)
 
       let newStream =
         { oldStream with
-            Events = combinedEvents
-            Version = lastEvent.Version }
+            Events = combinedEvents //|> Seq.toList
+            Version = lastEvent |> Option.map _.Version |> Option.defaultValue lastEventNumber }
 
       let result: CommandResult<'id, 'state, 'event, 'header, 'sideEffect> =
         { NewState = newState
@@ -142,13 +140,13 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'sideEffect>
       return result
     }
 
-let create<'id, 'state, 'event, 'header, 'command, 'sideEffect>
+let create<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect>
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (load: LoadStreamContainer<'id, 'event, 'header>)
   (executeCommand: Decide<'state, 'command, 'event, 'header, 'sideEffect>)
   =
   let commandHandler =
-    makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'sideEffect> zero evolve executeCommand load
+    makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 'sideEffect> zero evolve executeCommand load
 
   (commandHandler, appendEvents<'id, 'state, 'event, 'header, 'sideEffect> zero evolve load)

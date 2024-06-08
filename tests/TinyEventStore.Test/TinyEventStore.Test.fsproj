@@ -19,6 +19,9 @@
         <Compile Include="Invoices\InvoiceCommandHandler.fs" />
         <Compile Include="Invoices\InvoicingEventStore.fs" />
         <Compile Include="Invoices\Test.fs" />
+        <Compile Include="Chess\Db.fs" />
+        <Compile Include="Chess\Handler.fs" />
+        <Compile Include="Chess\ChessTest.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
         <Compile Include="Program.fs" />
@@ -59,6 +62,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\..\..\chess\chess.fsproj" />
       <ProjectReference Include="..\..\src\TinyEventStore.Ef\TinyEventStore.Ef.fsproj" />
       <ProjectReference Include="..\..\src\TinyEventStore\TinyEventStore.fsproj" />
     </ItemGroup>

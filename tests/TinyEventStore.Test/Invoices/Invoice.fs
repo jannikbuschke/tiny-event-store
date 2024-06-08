@@ -61,6 +61,13 @@ type Invoice =
     CustomerName: string
     Positions: InvoicePosition list }
 
+type InvoiceSettings = {
+  Name: string
+}
+type InvoiceSettingsEvent =
+  | Created of InvoiceSettings
+  | Updated of InvoiceSettings
+
 type Command =
   | CreateDraft of InvoiceDraft
   | UpdateDraft of InvoiceDraft
@@ -73,7 +80,9 @@ type Event =
   | Finalized of Invoice // maybe add rendered html here, or just in the send command?
 // | Sent of Invoice*Email
 // | MarkedAsPaid of Invoice*DateTimeOffset*string
+type InvoiceEvent = Event
 type EventHeader = { UserId: UserId }
+type InvoiceEventHeader = EventHeader
 type InvoiceEventEnvelope = EventEnvelope<InvoiceId, Event, EventHeader>
 
 type SideEffectEvent<'t> =

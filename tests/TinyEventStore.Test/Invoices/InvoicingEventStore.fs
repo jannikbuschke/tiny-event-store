@@ -12,7 +12,7 @@ open Microsoft.EntityFrameworkCore
 
 type Id = InvoiceId
 type Command = MyDomain.Invoicing.Core.Command
-type CommandEnvelope = CommandEnvelope<Id, Command>
+type CommandEnvelope = CommandEnvelope<Id, Command,unit>
 type Event = MyDomain.Invoicing.Core.Event
 type EventHeader = MyDomain.Invoicing.Core.EventHeader
 type EventEnvelope = Core.InvoiceEventEnvelope
@@ -37,7 +37,7 @@ let isNew (e: EventEnvelope<Id, Event, EventHeader>) =
   | Event.DraftCreated _ -> true
   | _ -> false
 
-let store = TinyEventStore.EfPure.efCreate<Id, State, Event, EventHeader, Command, SideEffect,InvoicingDb> Projections.invoiceDefaultZero Projections.invoiceDefaultEvolve CommandHandler.decide
+let store = TinyEventStore.EfPure.efCreate<Id, State, Event, EventHeader, Command,unit, SideEffect,InvoicingDb> Projections.invoiceDefaultZero Projections.invoiceDefaultEvolve CommandHandler.decide
 // let commandHandler (ctx: IServiceProvider) =
 //   let commandhandler =
 //     efCommandHandler<InvoiceId, InvoiceData, Command, Event, EventHeader, SideEffect, InvoicingDb>
@@ -88,7 +88,7 @@ let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
     let logger = ctx.RequestServices.GetService<ILogger<string>>()
     let db = ctx.RequestServices.GetService<InvoicingDb>()
 
-    let commandEnvelope: CommandEnvelope = CommandEnvelope.New(streamId, command)
+    let commandEnvelope: CommandEnvelope = CommandEnvelope.New(streamId, command,())
 
     let! runCommand = store.decide ctx.RequestServices streamId
     let! commandResult = runCommand commandEnvelope
