@@ -114,9 +114,10 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
 
       let newState = newEvents |> List.fold evolve oldState
 
-      let lastEvent = newEvents |> List.last
 
       let oldEvents = currentStreamState.Events |> Seq.toList
+      let combinedEvents = oldEvents @ newEvents
+      let lastEvent = combinedEvents |> List.last
       let combinedEvents = System.Collections.Generic.List(oldEvents @ newEvents)
 
       let newStream =
