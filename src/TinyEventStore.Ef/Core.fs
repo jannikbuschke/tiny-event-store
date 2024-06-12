@@ -8,6 +8,7 @@ type DbSideEffect =
   | Create
   | Update
   | Delete
+  | DoNothing
 
 let projectToDbCommand (events: EventEnvelope<'id, 'event, 'header> list) =
   if (events.Item 0).Version = 1u then

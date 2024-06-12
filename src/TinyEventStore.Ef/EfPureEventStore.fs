@@ -623,8 +623,8 @@ let updateDerived
 //   updateStreamAndEvents db stream events
 
 let updateEventStream (db: DbContext) (appendEventResult: OperationResult<'id, 'state, 'event, 'eventHeader>) =
-  updateStorableStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
-  // updateStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
+  // updateStorableStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
+  updateStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
 
 let efCreate<'id, 'state, 'event, 'header, 'command,'commandHeader, 'sideEffect, 'Db when 'Db :> DbContext and 'id: equality>
   (zero: 'state)
