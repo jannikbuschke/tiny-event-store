@@ -27,7 +27,6 @@
         <Compile Include="Core.fs" />
         <Compile Include="Storables.fs" />
         <Compile Include="ConfigureDbContext.fs" />
-        <Compile Include="EfPureEventStore.fs" />
     </ItemGroup>
 
     <ItemGroup>
@@ -47,7 +46,6 @@
 
     <ItemGroup>
         <Compile Include="Ef.fs" />
-        <Compile Include="EfEventStore.fs"/>
     </ItemGroup>
 
     <ItemGroup>

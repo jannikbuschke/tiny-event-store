@@ -147,7 +147,7 @@ module Storable =
     stream
 
   let toEvent (storableEvent: StorableEvent<'id, 'event, 'header>) =
-    if storableEvent.Header = null then failwith "Header is null"
+    if box storableEvent.Header = null then failwith "Header is null"
     let result: EventEnvelope<'id, 'event, 'header> =
       {
         SequenceId = storableEvent.SequenceId
