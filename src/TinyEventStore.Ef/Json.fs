@@ -18,3 +18,5 @@ let serialize<'T> (v: 'T) =
 
 let deserialize<'T> (v: string) =
   JsonSerializer.Deserialize<'T>(v, serializerOptions)
+
+let convert<'t> = (serialize<'t>),(deserialize<'t>)

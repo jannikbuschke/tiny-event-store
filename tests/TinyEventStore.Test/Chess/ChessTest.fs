@@ -6,8 +6,6 @@ open Chess
 open Microsoft.AspNetCore.Http
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
-open Microsoft.Extensions.Time.Testing
-open TinyEventStore
 open TinyEventStore.Test.Chess.Db
 open Xunit
 open Serilog
@@ -72,7 +70,7 @@ let ``do some and save changes`` () =
 
     use scope1 = serviceProvider.CreateScope()
 
-    let! state = TinyEventStore.Test.Chess.Handler.store.rehydrateLatest scope1.ServiceProvider id
+    let! state = TinyEventStore.Test.Chess.Handler.store.rehydrateLatest2 scope1.ServiceProvider id
 
     return ()
   }

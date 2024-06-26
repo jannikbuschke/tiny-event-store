@@ -1,4 +1,4 @@
-﻿module MyDomain.Invoicing.Core
+﻿module MyTestDomain.Invoicing.Core
 
 open System
 open TinyEventStore
@@ -18,7 +18,6 @@ type InvoiceId =
   static member New() = InvoiceId(Guid.NewGuid())
   static member ToRaw(InvoiceId id) = id
   static member FromRaw(id) = InvoiceId(id)
-
 
 type CustomerId =
   | CustomerId of Guid
@@ -64,6 +63,7 @@ type Invoice =
 type InvoiceSettings = {
   Name: string
 }
+
 type InvoiceSettingsEvent =
   | Created of InvoiceSettings
   | Updated of InvoiceSettings

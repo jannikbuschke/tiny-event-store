@@ -1,4 +1,4 @@
-﻿module MyDomain.Invoicing.Projections
+﻿module MyTestDomain.Invoicing.Projections
 
 open Core
 open System

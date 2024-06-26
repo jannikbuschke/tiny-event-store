@@ -19,31 +19,28 @@ type Stream<'id, 'event, 'header> =
   { Id: 'id
     Version: Version
     Created: DateTimeOffset
+    Modified: DateTimeOffset
     Events: EventEnvelope<'id, 'event, 'header> ICollection }
-
-  // member this.AddEvent(event: EventEnvelope<'id, 'event, 'header>) =
-  //   this.Events.Add(event)
-  //
-  //   if event.Version <> this.Version then
-  //     failwith "Event number does not match stream version"
-  //
-  //   this.Version <- event.Version
 
 /// <summary>
 /// summary: Wraps a single Event. This is meant to be serialized to some storage.
 /// </summary>
 and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
-  { StreamId: 'streamId
+  {
+    SequenceId: uint32
+    StreamId: 'streamId
     Payload: 'event
     EventId: EventId
     CausationId: CausationId option
+    // TODO: this could be a string to allow for more flexibility
     CorrelationId: CorrelationId option
     Version: Version
     Timestamp: DateTimeOffset
     Header: 'header }
 
   static member Create(streamId: 'streamId, payload: 'event, header: 'header, eventNumber: Version) =
-    { StreamId = streamId
+    { SequenceId = 0ul
+      StreamId = streamId
       Payload = payload
       EventId = EventId.New()
       CausationId = None
@@ -55,7 +52,8 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
   static member createEventMetadata
     (payload, header, command: CommandEnvelope<'streamId, 'command,'commandHeader>, eventNumber, correlationId)
     : EventEnvelope<'streamId, 'event, 'header> =
-    { StreamId = command.StreamId
+    { SequenceId = 0ul
+      StreamId = command.StreamId
       Payload = payload
       EventId = EventId.New()
       CausationId = Some(CausationId.CommandId command.CommandId)
@@ -73,7 +71,6 @@ and CommandEnvelope<'TId, 'TCommand, 'commandHeader> =
     CommandId: CommandId
     ExpectedVersion: uint option
     Timestamp: DateTimeOffset
-  // Header
   }
 
 module CommandEnvelope =
@@ -106,7 +103,6 @@ type CommandEnvelope() =
 
   static member New(streamId, payload, header, timestamp, version, correlationId, causationId) =
     CommandEnvelope.createCommandEnvelope streamId payload header timestamp version (Some correlationId) (Some causationId)
-
 
 type OperationResult<'id, 'state, 'event, 'header> =
   abstract NewState: 'state

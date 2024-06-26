@@ -21,6 +21,9 @@ let mapToDbOperation (db: DbContext) =
   | DbSideEffect.Create -> db.Add >> ignore
   | DbSideEffect.Update -> db.Update >> ignore
   | DbSideEffect.Delete -> db.Remove >> ignore
+  | DbSideEffect.DoNothing ->
+    // no-op
+    fun _ -> ()
 
 type IdConverter<'id, 'rawId> = ('id -> 'rawId) * ('rawId -> 'id)
 type Converter<'value, 'dto> = ('value -> 'dto) * ('dto -> 'value)

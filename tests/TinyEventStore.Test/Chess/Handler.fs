@@ -36,9 +36,9 @@ let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
     let logger = ctx.RequestServices.GetService<ILogger<string>>()
     // let db = ctx.RequestServices.GetService<InvoicingDb>()
     let commandEnvelope: CommandEnvelope = CommandEnvelope.New(streamId, command,CommandHeader())
-    let! runCommand = store.decide ctx.RequestServices streamId
+    let! runCommand = store.prepare ctx.RequestServices streamId
     let! commandResult = runCommand commandEnvelope
-    store.updateEventStore ctx.RequestServices commandResult
+    store.updateEventStore2 ctx.RequestServices commandResult
     let db = store.getDb ctx.RequestServices
     let allEntries = db.ChangeTracker.Entries() |> Seq.toList
 
@@ -63,9 +63,9 @@ let handleSettingsCommand (ctx: HttpContext) (streamId: Id, command: SettingsCom
   taskResult {
     let logger = ctx.RequestServices.GetService<ILogger<string>>()
     let commandEnvelope:  CommandEnvelope<Id,SettingsCommand,CommandHeader> = CommandEnvelope.New(streamId, command, CommandHeader())
-    let! runCommand = settingsStore.decide ctx.RequestServices streamId
+    let! runCommand = settingsStore.prepare ctx.RequestServices streamId
     let! commandResult = runCommand commandEnvelope
-    settingsStore.updateEventStore ctx.RequestServices commandResult
+    settingsStore.updateEventStore2 ctx.RequestServices commandResult
     let db = store.getDb ctx.RequestServices
     let allEntries = db.ChangeTracker.Entries() |> Seq.toList
 

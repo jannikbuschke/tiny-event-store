@@ -95,7 +95,7 @@ module Json =
   let deserialize x = deserialize (x, options)
 
 
-type Data = MyDomain.Invoicing.Core.Event
+type Data = MyTestDomain.Invoicing.Core.Event
 
 // let cases = FSharpType.GetUnionCases(typeof<'T>) |> Seq.map(fun x->x.Name)
 let data = DiscriminatedUnionHelper.GetAllUnionCases<Data>()
@@ -188,7 +188,7 @@ let EventDataToSerialize: obj array array =
 
   let types =
     [| ({| Name = "string option" |}, typeof<string option>)
-       ({| Name = "Event" |}, typeof<MyDomain.Invoicing.Core.Event>)
+       ({| Name = "Event" |}, typeof<MyTestDomain.Invoicing.Core.Event>)
        ({| Name = "SingleCaseDu1" |}, typeof<SingleCaseUnion1NoField>)
        ({| Name = "SingleCaseDu2" |}, typeof<SingleCaseUnion2OfString>)
        ({| Name = "SingleCaseDu3" |}, typeof<SingleCaseUnion3OfMultipleFields>)

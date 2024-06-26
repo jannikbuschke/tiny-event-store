@@ -1,5 +1,5 @@
 ﻿[<AutoOpen>]
-module TinyEventStore.Ef
+module TinyEventStore.EfOld
 
 open System
 open Microsoft.EntityFrameworkCore
@@ -191,7 +191,8 @@ let genericLoadEvents<'id, 'event, 'header when 'id: equality> (db: DbContext) (
         let stream =
           { Stream.Id = id
             Version = 0u
-            Created = DateTimeOffset.UtcNow
+            Created = DateTimeOffset.MinValue
+            Modified = DateTimeOffset.MinValue
             Events = ResizeArray [] }
 
         stream
@@ -261,7 +262,7 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'sideEffect, 'Db when 'Db :
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (executeCommand: IServiceProvider -> Decide<'state, 'command, 'event, 'header, 'sideEffect>)
-  : EfStore<'id, 'state, 'command,'commandHeader, 'event, 'header, 'sideEffect, 'Db> =
+  : EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db> =
 
   let rehydrateRaw = TinyEventStore.PureStore.rehydrate zero evolve
 

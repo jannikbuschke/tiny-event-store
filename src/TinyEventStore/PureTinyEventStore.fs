@@ -3,10 +3,10 @@ module TinyEventStore.PureStore
 open FsToolkit.ErrorHandling
 open TinyEventStore
 
-let rehydrate<'id, 'state, 'event, 'header>
+let rehydrateEvents<'id, 'state, 'event, 'header>
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
-  (stream: Stream<'id, 'event, 'header>)
+  (events: EventEnvelope<'id, 'event, 'header> seq)
   =
   let evolveWithVersionCheck (state, version) e =
     if e.Version <= version then
@@ -16,11 +16,31 @@ let rehydrate<'id, 'state, 'event, 'header>
     (innerState, e.Version)
 
   let state, _ =
-    stream.Events
+    events
     |> Seq.sortBy _.Version
     |> Seq.fold evolveWithVersionCheck (zero, 0u)
 
   state
+
+let rehydrate<'id, 'state, 'event, 'header>
+  (zero: 'state)
+  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (stream: Stream<'id, 'event, 'header>)
+  =
+  rehydrateEvents zero evolve stream.Events
+  // let evolveWithVersionCheck (state, version) e =
+  //   if e.Version <= version then
+  //     failwith "Events are not ordered"
+  //
+  //   let innerState = evolve state e
+  //   (innerState, e.Version)
+  //
+  // let state, _ =
+  //   stream.Events
+  //   |> Seq.sortBy _.Version
+  //   |> Seq.fold evolveWithVersionCheck (zero, 0u)
+  //
+  // state
 
 let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
   (zero: 'state)
@@ -122,6 +142,7 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
 
       let newStream =
         { currentStreamState with
+            Modified = lastEvent.Timestamp
             Events = combinedEvents// |> Seq.toList
             Version = lastEvent.Version }
 
@@ -143,7 +164,7 @@ let create<'id, 'state, 'event, 'header, 'command, 'commandHeader,'sideEffect>
   (executeCommand: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
   =
   let commandHandler =
-    makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHEader, 'sideEffect> zero evolve executeCommand
+    makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect> zero evolve executeCommand
 
   let appendEventsHandler =
     appendEvents<'id, 'state, 'event, 'header, 'sideEffect> zero evolve

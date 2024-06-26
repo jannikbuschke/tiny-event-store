@@ -1,14 +1,13 @@
-﻿module TinyEventStore.Test.Invoices.Test
+﻿module MyTestDomain.Test.Invoices.Test
 
 open System
 open Microsoft.AspNetCore.Http
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Time.Testing
-open MyDomain.Invoicing.Core
-open MyDomain.Invoicing.Db
-open MyDomain.Invoicing.Projections
-open TinyEventStore
+open MyTestDomain.Invoicing.Core
+open MyTestDomain.Invoicing.Db
+open TinyEventStore.Ef.Storables
 open Xunit
 open Serilog
 
@@ -52,17 +51,17 @@ serviceProvider.GetService<InvoicingDb>().Database.EnsureDeleted() |> ignore
 serviceProvider.GetService<InvoicingDb>().Database.EnsureCreated() |> ignore
 
 [<Fact>]
-let ``foo`` () =
+let ``create and update draft and expect storable stream and event`` () =
   task {
     use scope0 = serviceProvider.CreateScope()
     let httpContext = DefaultHttpContext(RequestServices = scope0.ServiceProvider)
     let id = InvoiceId.New()
 
     let! result1 =
-      MyDomain.Invoicing.EventStore.handleCommand
+      MyTestDomain.Invoicing.EventStore.handleCommand
         httpContext
         (id,
-         MyDomain.Invoicing.Core.Command.CreateDraft
+         MyTestDomain.Invoicing.Core.Command.CreateDraft
            { InvoiceNumber = None
              CustomerId = None
              Positions = [] })
@@ -72,42 +71,33 @@ let ``foo`` () =
     do! System.Threading.Tasks.Task.Delay(10)
 
     let! result2 =
-      MyDomain.Invoicing.EventStore.handleCommand
+      MyTestDomain.Invoicing.EventStore.handleCommand
         httpContext
         (id,
-         MyDomain.Invoicing.Core.Command.UpdateDraft
+         MyTestDomain.Invoicing.Core.Command.UpdateDraft
            { InvoiceNumber = InvoiceNumber "123" |> Some
              CustomerId = None
              Positions = [] })
 
     use scope1 = serviceProvider.CreateScope()
 
-    let! state = MyDomain.Invoicing.EventStore.store.rehydrateLatest scope1.ServiceProvider id
+    let! state = MyTestDomain.Invoicing.EventStore.store.rehydrateLatest2 scope1.ServiceProvider id
 
     let db = scope1.ServiceProvider.GetService<InvoicingDb>()
 
     let! streamCount =
       db
-        .Set<Stream<InvoiceId, MyDomain.Invoicing.Core.Event, MyDomain.Invoicing.Core.EventHeader>>()
+        .Set<StorableStream<InvoiceId, MyTestDomain.Invoicing.Core.Event, MyTestDomain.Invoicing.Core.EventHeader>>()
         .CountAsync()
 
     Assert.Equal(1, streamCount)
 
     let! eventCount =
       db
-        .Set<EventEnvelope<InvoiceId, MyDomain.Invoicing.Core.Event, MyDomain.Invoicing.Core.EventHeader>>()
+        .Set<StorableEvent<InvoiceId, MyTestDomain.Invoicing.Core.Event, MyTestDomain.Invoicing.Core.EventHeader>>()
         .CountAsync()
 
     Assert.Equal(2, eventCount)
-    // let invoice = db.Set<DefaultProjection<Id, InvoiceData>>().Find(id)
-    //
-    // Assert.True(
-    //   invoice.Value =
-    //     InvoiceData.Draft
-    //       { InvoiceNumber = InvoiceNumber "123" |> Some
-    //         CustomerId = None
-    //         Positions = [] }
-    // )
 
     Assert.True true
     let deleteDb = false

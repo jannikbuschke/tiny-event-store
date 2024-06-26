@@ -24,6 +24,7 @@
         <Compile Include="Chess\ChessTest.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
+        <Compile Include="RerunProjection.fs" />
         <Compile Include="Program.fs" />
         <Content Include=".env.local">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
