@@ -121,7 +121,8 @@ module Storable =
         Timestamp = result.Timestamp,
         CausationId = causation,
         CorrelationId = result.CorrelationId,
-        Data = result.Payload
+        Data = result.Payload,
+        Header = result.Header
       )
 
     if not (result.HasValidVersion())
@@ -146,6 +147,7 @@ module Storable =
     stream
 
   let toEvent (storableEvent: StorableEvent<'id, 'event, 'header>) =
+    if storableEvent.Header = null then failwith "Header is null"
     let result: EventEnvelope<'id, 'event, 'header> =
       {
         SequenceId = storableEvent.SequenceId
@@ -168,8 +170,7 @@ module Storable =
         CorrelationId = storableEvent.CorrelationId
         Version = storableEvent.Version
         Timestamp = storableEvent.Timestamp
-        Header = Unchecked.defaultof<'header>
-      // this.Header
+        Header = storableEvent.Header
       }
 
     result
