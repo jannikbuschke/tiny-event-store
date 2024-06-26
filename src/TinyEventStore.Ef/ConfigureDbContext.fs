@@ -306,7 +306,7 @@ type ModelBuilderExtensions() =
         .HasDiscriminator<string>("Type")
 
     fn (ConfigureStream<'id, 'idRaw>(ty, streamEntity, eventEntity))
-    ()
+    (ty.Entity<AbstractStorableStream<'id>> ()), (ty.Entity<AbstractStorableEvent<'id>>())
 
   [<Extension>]
   static member AddMultiEventStore<'id, 'idRaw when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, fStream, fEvent, configureChilds) =
