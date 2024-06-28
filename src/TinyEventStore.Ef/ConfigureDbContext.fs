@@ -199,25 +199,23 @@ type ConfigureStream<'id, 'idRaw when 'id: equality>
 
     eventEntity
       .Property(fun x -> x.StreamId)
+      .IsRequired(true)
       .HasColumnName("StreamId")
     |> ignore
 
     eventEntity
       .HasIndex(fun x -> (x.Version, x.StreamId) :> obj)
       .IsUnique()
-      // .IsDescending(true, false)
-      // .HasDatabaseName("asd")
     |> ignore
 
     let dataProp =
       ty
         .Entity<StorableEvent<'id, 'event, 'header>>()
         .Property(fun x -> x.Data)
-
-    dataProp.HasColumnName("Data") |> ignore
-
-    dataProp.HasConversion(Json.serialize, Json.deserialize)
-    |> ignore
+        .IsRequired(true)
+        .HasColumnName("Data")
+        .HasConversion(Json.serialize, Json.deserialize)
+        |> ignore
 
     let headerProp =
       ty
@@ -271,6 +269,7 @@ type ModelBuilderExtensions() =
 
       entity
         .Property(fun x -> x.EventId)
+        .IsRequired(true)
         .HasConversion(EventId.ToRawValue, EventId.FromRawValue)
       |> ignore
 
@@ -308,80 +307,80 @@ type ModelBuilderExtensions() =
     fn (ConfigureStream<'id, 'idRaw>(ty, streamEntity, eventEntity))
     (ty.Entity<AbstractStorableStream<'id>> ()), (ty.Entity<AbstractStorableEvent<'id>>())
 
-  [<Extension>]
-  static member AddMultiEventStore<'id, 'idRaw when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, fStream, fEvent, configureChilds) =
-    ty.Entity<AbstractStorableStream<'id>> (fun entity ->
-      entity.HasKey(fun x -> x.Id :> obj) |> ignore
-
-      entity.ToTable "streams" |> ignore
-
-      entity
-        .Property(fun x -> x.Id)
-        .HasConversion(idConverter |> fst, idConverter |> snd)
-      |> ignore)
-    |> ignore
-
-    let streamEntity =
-      ty
-        .Entity<AbstractStorableStream<'id>>()
-        .HasDiscriminator<string>("Streamtype")
-
-    fStream streamEntity
-
-    ty.Entity<AbstractStorableEvent<'id>> (fun entity ->
-      entity.HasKey(fun x -> x.EventId :> obj) |> ignore
-
-      entity
-        .Property(fun x -> x.EventId)
-        .HasConversion(EventId.ToRawValue, EventId.FromRawValue)
-      |> ignore
-
-      entity.ToTable "events" |> ignore
-
-      entity.OwnsOne(fun x -> x.CausationId) |> ignore
-
-      let toRaw =
-        Option.map CorrelationId.ToRawValue
-        >> Option.toNullable
-
-      let fromRaw =
-        Option.ofNullable
-        >> Option.map CorrelationId.FromRawValue
-
-      entity
-        .Property(fun x -> x.CorrelationId)
-        .HasConversion(toRaw, fromRaw)
-      |> ignore
-
-      ())
-    |> ignore
-
-    let eventEntity =
-      ty
-        .Entity<AbstractStorableEvent<'id>>()
-        .HasDiscriminator<string>("Eventtype")
-
-    fEvent eventEntity
-
-    ()
-
-  [<Extension>]
-  static member AddEventStore<'id, 'rawId, 'event, 'header>(ty: ModelBuilder, converter: IdConverter<'id, 'rawId>, entityName: string) =
-    configureEventStore<'id, 'rawId, 'event, 'header> ty converter (sprintf "%s.Streams" entityName) (sprintf "%s.Events" entityName)
-
-  [<Extension>]
-  static member AddEventStore<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
-    (
-      ty: ModelBuilder,
-      converter: IdConverter<'id, 'rawId>,
-      eventConverter: IdConverter<'event, 'eventDto>,
-      headerConverter: IdConverter<'header, 'headerDto>,
-      entityName: string
-    ) =
-    configureEventStoreWithConversions<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
-      ty
-      converter
-      eventConverter
-      headerConverter
-      (sprintf "%s.Streams" entityName)
-      (sprintf "%s.Events" entityName)
+  // [<Extension>]
+  // static member AddMultiEventStore<'id, 'idRaw when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, fStream, fEvent, configureChilds) =
+  //   ty.Entity<AbstractStorableStream<'id>> (fun entity ->
+  //     entity.HasKey(fun x -> x.Id :> obj) |> ignore
+  //
+  //     entity.ToTable "streams" |> ignore
+  //
+  //     entity
+  //       .Property(fun x -> x.Id)
+  //       .HasConversion(idConverter |> fst, idConverter |> snd)
+  //     |> ignore)
+  //   |> ignore
+  //
+  //   let streamEntity =
+  //     ty
+  //       .Entity<AbstractStorableStream<'id>>()
+  //       .HasDiscriminator<string>("Streamtype")
+  //
+  //   fStream streamEntity
+  //
+  //   ty.Entity<AbstractStorableEvent<'id>> (fun entity ->
+  //     entity.HasKey(fun x -> x.EventId :> obj) |> ignore
+  //
+  //     entity
+  //       .Property(fun x -> x.EventId)
+  //       .HasConversion(EventId.ToRawValue, EventId.FromRawValue)
+  //     |> ignore
+  //
+  //     entity.ToTable "events" |> ignore
+  //
+  //     entity.OwnsOne(fun x -> x.CausationId) |> ignore
+  //
+  //     let toRaw =
+  //       Option.map CorrelationId.ToRawValue
+  //       >> Option.toNullable
+  //
+  //     let fromRaw =
+  //       Option.ofNullable
+  //       >> Option.map CorrelationId.FromRawValue
+  //
+  //     entity
+  //       .Property(fun x -> x.CorrelationId)
+  //       .HasConversion(toRaw, fromRaw)
+  //     |> ignore
+  //
+  //     ())
+  //   |> ignore
+  //
+  //   let eventEntity =
+  //     ty
+  //       .Entity<AbstractStorableEvent<'id>>()
+  //       .HasDiscriminator<string>("Eventtype")
+  //
+  //   fEvent eventEntity
+  //
+  //   ()
+  //
+  // [<Extension>]
+  // static member AddEventStore<'id, 'rawId, 'event, 'header>(ty: ModelBuilder, converter: IdConverter<'id, 'rawId>, entityName: string) =
+  //   configureEventStore<'id, 'rawId, 'event, 'header> ty converter (sprintf "%s.Streams" entityName) (sprintf "%s.Events" entityName)
+  //
+  // [<Extension>]
+  // static member AddEventStore<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
+  //   (
+  //     ty: ModelBuilder,
+  //     converter: IdConverter<'id, 'rawId>,
+  //     eventConverter: IdConverter<'event, 'eventDto>,
+  //     headerConverter: IdConverter<'header, 'headerDto>,
+  //     entityName: string
+  //   ) =
+  //   configureEventStoreWithConversions<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
+  //     ty
+  //     converter
+  //     eventConverter
+  //     headerConverter
+  //     (sprintf "%s.Streams" entityName)
+  //     (sprintf "%s.Events" entityName)
