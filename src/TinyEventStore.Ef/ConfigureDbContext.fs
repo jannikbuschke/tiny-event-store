@@ -177,17 +177,18 @@ let configureEventStoreWithConversions<'id, 'rawId, 'event, 'eventDto, 'header, 
   (streamTableName: string)
   (eventTableName: string)
   =
-  configureStream<'id, 'rawId, 'event, 'header> modelBuilder converter streamTableName |> ignore
+  configureStream<'id, 'rawId, 'event, 'header> modelBuilder converter streamTableName
+  |> ignore
 
   configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto> modelBuilder eventTableName converter eventConverter headerConverter
 
-type ConfigureStream<'id, 'idRaw when 'id: equality>
+type ConfigureStream<'id, 'idRaw, 'tDiscriminator when 'id: equality>
   (
     ty: ModelBuilder,
-    streamEntityDiscriminator: Metadata.Builders.DiscriminatorBuilder<string>,
-    eventEntityDiscriminator: Metadata.Builders.DiscriminatorBuilder<string>
+    streamEntityDiscriminator: Metadata.Builders.DiscriminatorBuilder<'tDiscriminator>,
+    eventEntityDiscriminator: Metadata.Builders.DiscriminatorBuilder<'tDiscriminator>
   ) =
-  member this.WithStreamType<'event, 'header>(name: string) =
+  member this.WithStreamType<'event, 'header>(name: 'tDiscriminator) =
     streamEntityDiscriminator.HasValue<StorableStream<'id, 'event, 'header>> name
     |> ignore
 
@@ -215,7 +216,7 @@ type ConfigureStream<'id, 'idRaw when 'id: equality>
         .IsRequired(true)
         .HasColumnName("Data")
         .HasConversion(Json.serialize, Json.deserialize)
-        |> ignore
+      |> ignore
 
     let headerProp =
       ty
@@ -235,7 +236,7 @@ type ConfigureStream<'id, 'idRaw when 'id: equality>
       .HasConstraintName("stream_events")
     |> ignore
 
-    ()
+    eventEntity
 
   member this.Build() = ()
 
@@ -244,18 +245,20 @@ type ModelBuilderExtensions() =
 
   [<Extension>]
   static member HasTinyEventStoreJsonConversion<'a>(property: Metadata.Builders.PropertyBuilder<'a>) =
-    property.HasConversion(Json.serialize, Json.deserialize) |> ignore
+    property.HasConversion(Json.serialize, Json.deserialize)
+    |> ignore
 
   [<Extension>]
-  static member HasTinyEventStoreIdConversion<'id,'idRaw>(property: Metadata.Builders.PropertyBuilder<'id>, idConverter: IdConverter<'id, 'idRaw>) =
-    property.HasConversion(idConverter |> fst, idConverter |> snd) |> ignore
+  static member HasTinyEventStoreIdConversion<'id, 'idRaw>(property: Metadata.Builders.PropertyBuilder<'id>, idConverter: IdConverter<'id, 'idRaw>) =
+    property.HasConversion(idConverter |> fst, idConverter |> snd)
+    |> ignore
 
   [<Extension>]
-  static member AddMultiEventStore2<'id, 'idRaw when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, name, fn) =
+  static member AddMultiEventStore2<'id, 'idRaw, 'tDiscriminator when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, name, fn) =
     ty.Entity<AbstractStorableStream<'id>> (fun entity ->
       entity.HasKey(fun x -> x.Id :> obj) |> ignore
 
-      entity.ToTable (name + "_streams") |> ignore
+      entity.ToTable(name + "_streams") |> ignore
 
       entity
         .Property(fun x -> x.Id)
@@ -289,98 +292,24 @@ type ModelBuilderExtensions() =
         .HasConversion(toRaw, fromRaw)
       |> ignore
 
-      entity.Ignore(fun x->x.CausationId:>obj)|>ignore
-      entity.Ignore(fun x->x.CorrelationId:>obj)|>ignore
+      entity.Ignore(fun x -> x.CausationId :> obj)
+      |> ignore
+
+      entity.Ignore(fun x -> x.CorrelationId :> obj)
+      |> ignore
+
       ())
     |> ignore
 
     let streamEntity =
       ty
         .Entity<AbstractStorableStream<'id>>()
-        .HasDiscriminator<string>("Type")
+        .HasDiscriminator<'tDiscriminator>("Type")
 
     let eventEntity =
       ty
         .Entity<AbstractStorableEvent<'id>>()
-        .HasDiscriminator<string>("Type")
+        .HasDiscriminator<'tDiscriminator>("Type")
 
-    fn (ConfigureStream<'id, 'idRaw>(ty, streamEntity, eventEntity))
-    (ty.Entity<AbstractStorableStream<'id>> ()), (ty.Entity<AbstractStorableEvent<'id>>())
-
-  // [<Extension>]
-  // static member AddMultiEventStore<'id, 'idRaw when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, fStream, fEvent, configureChilds) =
-  //   ty.Entity<AbstractStorableStream<'id>> (fun entity ->
-  //     entity.HasKey(fun x -> x.Id :> obj) |> ignore
-  //
-  //     entity.ToTable "streams" |> ignore
-  //
-  //     entity
-  //       .Property(fun x -> x.Id)
-  //       .HasConversion(idConverter |> fst, idConverter |> snd)
-  //     |> ignore)
-  //   |> ignore
-  //
-  //   let streamEntity =
-  //     ty
-  //       .Entity<AbstractStorableStream<'id>>()
-  //       .HasDiscriminator<string>("Streamtype")
-  //
-  //   fStream streamEntity
-  //
-  //   ty.Entity<AbstractStorableEvent<'id>> (fun entity ->
-  //     entity.HasKey(fun x -> x.EventId :> obj) |> ignore
-  //
-  //     entity
-  //       .Property(fun x -> x.EventId)
-  //       .HasConversion(EventId.ToRawValue, EventId.FromRawValue)
-  //     |> ignore
-  //
-  //     entity.ToTable "events" |> ignore
-  //
-  //     entity.OwnsOne(fun x -> x.CausationId) |> ignore
-  //
-  //     let toRaw =
-  //       Option.map CorrelationId.ToRawValue
-  //       >> Option.toNullable
-  //
-  //     let fromRaw =
-  //       Option.ofNullable
-  //       >> Option.map CorrelationId.FromRawValue
-  //
-  //     entity
-  //       .Property(fun x -> x.CorrelationId)
-  //       .HasConversion(toRaw, fromRaw)
-  //     |> ignore
-  //
-  //     ())
-  //   |> ignore
-  //
-  //   let eventEntity =
-  //     ty
-  //       .Entity<AbstractStorableEvent<'id>>()
-  //       .HasDiscriminator<string>("Eventtype")
-  //
-  //   fEvent eventEntity
-  //
-  //   ()
-  //
-  // [<Extension>]
-  // static member AddEventStore<'id, 'rawId, 'event, 'header>(ty: ModelBuilder, converter: IdConverter<'id, 'rawId>, entityName: string) =
-  //   configureEventStore<'id, 'rawId, 'event, 'header> ty converter (sprintf "%s.Streams" entityName) (sprintf "%s.Events" entityName)
-  //
-  // [<Extension>]
-  // static member AddEventStore<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
-  //   (
-  //     ty: ModelBuilder,
-  //     converter: IdConverter<'id, 'rawId>,
-  //     eventConverter: IdConverter<'event, 'eventDto>,
-  //     headerConverter: IdConverter<'header, 'headerDto>,
-  //     entityName: string
-  //   ) =
-  //   configureEventStoreWithConversions<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
-  //     ty
-  //     converter
-  //     eventConverter
-  //     headerConverter
-  //     (sprintf "%s.Streams" entityName)
-  //     (sprintf "%s.Events" entityName)
+    fn (ConfigureStream<'id, 'idRaw, 'tDiscriminator>(ty, streamEntity, eventEntity))
+    (ty.Entity<AbstractStorableStream<'id>>()), (ty.Entity<AbstractStorableEvent<'id>>())
