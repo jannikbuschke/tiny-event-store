@@ -155,6 +155,7 @@ let configureStream<'id, 'rawId, 'event, 'header> (modelBuilder: ModelBuilder) (
 
   entity
 
+
 let configureEventStore<'id, 'rawId, 'event, 'header>
   (modelBuilder: ModelBuilder)
   (converter: IdConverter<'id, 'rawId>)
@@ -216,7 +217,6 @@ type ConfigureStream<'id, 'idRaw, 'tDiscriminator when 'id: equality>
         .IsRequired(true)
         .HasColumnName("Data")
         .HasConversion(Json.serialize, Json.deserialize)
-      |> ignore
 
     let headerProp =
       ty
@@ -236,9 +236,7 @@ type ConfigureStream<'id, 'idRaw, 'tDiscriminator when 'id: equality>
       .HasConstraintName("stream_events")
     |> ignore
 
-    eventEntity
-
-  member this.Build() = ()
+    eventEntity, dataProp
 
 [<Extension>]
 type ModelBuilderExtensions() =
