@@ -324,9 +324,7 @@ let updateDerived
   =
   let derived = derive commandResult
   let entry = db.Entry(derived)
-  printfn "is key set%A " entry.IsKeySet
   entry.CurrentValues.Item"Id" <- commandResult.NewStream.Id
-  printfn "is key set%A " entry.IsKeySet
   let dbCmd = projectToDbCommand commandResult.NewEvents
   let insertOrUpdate x = mapToDbOperation db dbCmd x
   insertOrUpdate derived
@@ -334,7 +332,6 @@ let updateDerived
 
 let updateEventStream2 (db: DbContext) (appendEventResult: OperationResult<'id, 'state, 'event, 'eventHeader>) =
   updateStorableStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
-// updateStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
 
 let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect, 'Db when 'Db :> DbContext and 'id: equality>
   (zero: 'state)

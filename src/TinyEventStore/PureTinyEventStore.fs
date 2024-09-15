@@ -91,20 +91,17 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
   =
   fun (command: CommandEnvelope<'id, 'command,'commandHeader>) ->
     result {
-      printfn "events %A" (currentStreamState.Events |> Seq.toList)
       let highestEventNumber =
         match currentStreamState.Events|>Seq.toList with
         | [] -> -1L
         | elements -> elements |> Seq.map(fun x -> int64 x.Version) |> Seq.max
       // let highestEventNumber = currentStreamState.Events |> Seq.map _.Version |> Seq.max
-      printfn "highest event number %A" highestEventNumber
       let lastEventNumber =
         currentStreamState.Events
         |> Seq.sortBy _.Version
         |> Seq.tryLast
         |> Option.map _.Version
         |> Option.defaultValue 0u
-      printfn "last event number %A" lastEventNumber
 
       let oldState = rehydrate zero evolve currentStreamState
 
