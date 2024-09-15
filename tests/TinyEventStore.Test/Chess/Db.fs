@@ -5,7 +5,6 @@ open System.Collections.Generic
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
 open TinyEventStore.Ef
-open TinyEventStore.EfPure
 open TinyEventStore.Ef.Storables
 open TinyEventStore.Ef.DbContext
 
@@ -43,12 +42,9 @@ type ChessDb =
 
   override this.OnModelCreating(modelBuilder) =
 
-    modelBuilder.AddMultiEventStore2<Id, int64>((Id.ToRaw, Id.FromRaw), "chess", (fun model ->
+    modelBuilder.AddMultiEventStore2<Id, int64,string>((Id.ToRaw, Id.FromRaw), "chess", (fun model ->
         model.WithStreamType<GameEvent, ChessEventHeader>("chess_game")
         model.WithStreamType<SettingsEvent, ChessEventHeader>("chess_settings")
-        // model
-        //   .HasValue<StorableStream<Id, GameEvent, ChessEventHeader>>("chess_game")
-        //   .HasValue<StorableStream<Id, SettingsEvent, ChessEventHeader>>("chess_settings")
         ())
 
     )

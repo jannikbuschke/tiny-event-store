@@ -21,7 +21,7 @@ type SideEffect = unit
 type State = Chess.Game
 
 let store =
-  TinyEventStore.EfPure.efCreate<Id, State, Event, EventHeader, Command,CommandHeader, SideEffect, TinyEventStore.Test.Chess.Db.ChessDb>
+  TinyEventStore.EfEs.efCreate<Id, State, Event, EventHeader, Command,CommandHeader, SideEffect, TinyEventStore.Test.Chess.Db.ChessDb>
     Chess.Game.Zero
     (fun state e -> Chess.evolve state e.Payload)
     (fun state command ->
@@ -52,7 +52,7 @@ let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
   }
 
 let settingsStore =
-  TinyEventStore.EfPure.efCreate<Id, Db.ChessSettings, SettingsEvent, EventHeader, SettingsCommand,CommandHeader, SideEffect, TinyEventStore.Test.Chess.Db.ChessDb>
+  TinyEventStore.EfEs.efCreate<Id, Db.ChessSettings, SettingsEvent, EventHeader, SettingsCommand,CommandHeader, SideEffect, TinyEventStore.Test.Chess.Db.ChessDb>
     SettingsLogic.zero
     (fun state e -> SettingsLogic.evolve state e.Payload)
     (fun state command ->

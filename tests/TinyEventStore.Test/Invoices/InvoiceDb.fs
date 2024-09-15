@@ -16,10 +16,9 @@ type InvoicingDb =
   new(options: DbContextOptions<InvoicingDb>) = { inherit DbContext(options) }
 
   override this.OnModelCreating(modelBuilder) =
-    modelBuilder.AddMultiEventStore2<Id, Guid>((Id.ToRaw, Id.FromRaw), "invoice", fun config ->
+    modelBuilder.AddMultiEventStore2<Id, Guid,string>((Id.ToRaw, Id.FromRaw), "invoice", fun config ->
       config.WithStreamType<Event, EventHeader>("invoice")
       config.WithStreamType<InvoiceSettingsEvent, EventHeader>("settings")
-      config.Build()
       ()
     )
     //

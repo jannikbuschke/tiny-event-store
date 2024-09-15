@@ -121,7 +121,7 @@ let ``Many events on one stream`` () =
     let overallElapsed = overallTime.Elapsed
     use scope1 = serviceProvider.CreateScope()
     let httpContext = DefaultHttpContext(RequestServices = scope1.ServiceProvider)
-    let! state = TinyEventStore.Test.Chess.Handler.store.rehydrateLatest scope1.ServiceProvider id
+    let! state = TinyEventStore.Test.Chess.Handler.store.rehydrateLatest2 scope1.ServiceProvider id
 
     return ()
   }
