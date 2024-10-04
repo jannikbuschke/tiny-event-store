@@ -1,4 +1,4 @@
-﻿module TinyEventStore.Ef.Storables
+module TinyEventStore.Ef.Storables
 
 open System
 open System.Collections.Generic
@@ -7,15 +7,14 @@ open TinyEventStore
 [<AbstractClass>]
 type AbstractStorableStream<'id when 'id: equality>() =
   abstract member Id: 'id with get, set
-  member val Version = Unchecked.defaultof<uint32> with get, set
+  member val Version = Unchecked.defaultof<uint32> with get, set // TODO this is never initialized
   member val Created = Unchecked.defaultof<DateTimeOffset> with get, set
   member val Modified = Unchecked.defaultof<DateTimeOffset> with get, set
 
   member this.HasValidVersion() = this.Version > 0u
 
   member this.IsValid() =
-    this.HasValidVersion()
-    && (this.Id <> Unchecked.defaultof<'id>)
+    this.HasValidVersion() && (this.Id <> Unchecked.defaultof<'id>)
 
 and StorableStream<'id, 'event, 'header when 'id: equality>() =
   inherit AbstractStorableStream<'id>()
@@ -46,8 +45,7 @@ and [<AbstractClass>] AbstractStorableEvent<'id>() =
   member this.HasValidVersion() = this.Version > 0u
 
   member this.IsValid() =
-    this.HasValidSequenceId()
-    && this.HasValidVersion()
+    this.HasValidSequenceId() && this.HasValidVersion()
 
   member this.InvalidReason() =
     if this.IsValid() then
@@ -69,8 +67,8 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
     FromSequenceId: uint32
     ToSequenceId: uint32
     Events: StorableEvent<'id, 'event, 'header> list
-    // StreamChunk: StorableStream<'id, 'event, 'header>
-     }
+  // StreamChunk: StorableStream<'id, 'event, 'header>
+  }
 
   member this.IsZero() =
     this.FromSequenceId = 0u || this.ToSequenceId = 0u
@@ -81,29 +79,33 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
   // chunk 0 ToSequence must be exactly 1 less than chunk1 FromSequence
   static member Append (chunk0: StreamChunk<'id, 'event, 'header>) (chunk1: StreamChunk<'id, 'event, 'header>) =
 
-    if (chunk0.ToSequenceId  + 1u = chunk1.FromSequenceId) then
-      if chunk0.IsZero() then chunk1
+    if (chunk0.ToSequenceId + 1u = chunk1.FromSequenceId) then
+      if chunk0.IsZero() then
+        chunk1
       else
-      { StreamId = chunk0.StreamId
-        FromSequenceId = chunk1.FromSequenceId
-        ToSequenceId = chunk0.ToSequenceId
-        Events = chunk0.Events @ chunk1.Events
+        { StreamId = chunk0.StreamId
+          FromSequenceId = chunk1.FromSequenceId
+          ToSequenceId = chunk0.ToSequenceId
+          Events = chunk0.Events @ chunk1.Events
         // StreamChunk = chunk0.StreamChunk
         }
     else
-      failwith $"Cannot append chunks. Source chunk version = {chunk0.FromSequenceId}, appending chunk version = {chunk1.ToSequenceId}"
+      failwith
+        $"Cannot append chunks. Source chunk version = {chunk0.FromSequenceId}, appending chunk version = {chunk1.ToSequenceId}"
 
   static member Zero =
     let events: StorableEvent<'id, 'event, 'header> list = []
+
     { StreamId = Unchecked.defaultof<'id>
       FromSequenceId = 0u
       ToSequenceId = 0u
       Events = events
-      // StreamChunk = Unchecked.defaultof<StorableStream<'id, 'event, 'header>>
-      }
+    // StreamChunk = Unchecked.defaultof<StorableStream<'id, 'event, 'header>>
+    }
 
 module Storable =
   open System.Linq
+
   let toStorableEvent (result: EventEnvelope<'id, 'event, 'header>) =
     //TODO: here maybe add a converter?
     let causation =
@@ -125,8 +127,7 @@ module Storable =
         Header = result.Header
       )
 
-    if not (result.HasValidVersion())
-    then
+    if not (result.HasValidVersion()) then
       failwith ("event is invalid version " + result.Version.ToString())
 
     result
@@ -147,10 +148,11 @@ module Storable =
     stream
 
   let toEvent (storableEvent: StorableEvent<'id, 'event, 'header>) =
-    if box storableEvent.Header = null then failwith "Header is null"
+    if box storableEvent.Header = null then
+      failwith "Header is null"
+
     let result: EventEnvelope<'id, 'event, 'header> =
-      {
-        SequenceId = storableEvent.SequenceId
+      { SequenceId = storableEvent.SequenceId
         StreamId = storableEvent.StreamId
         EventId = storableEvent.EventId
         Payload = storableEvent.Data
@@ -158,20 +160,13 @@ module Storable =
           storableEvent.CausationId
           |> Option.map (fun causation ->
             match causation.Type with
-            | CausationType.Command ->
-              causation.Id
-              |> CommandId.FromRawValue
-              |> CausationId.CommandId
-            | CausationType.Event ->
-              causation.Id
-              |> EventId.FromRawValue
-              |> CausationId.EventId
+            | CausationType.Command -> causation.Id |> CommandId.FromRawValue |> CausationId.CommandId
+            | CausationType.Event -> causation.Id |> EventId.FromRawValue |> CausationId.EventId
             | _ -> ArgumentOutOfRangeException() |> raise)
         CorrelationId = storableEvent.CorrelationId
         Version = storableEvent.Version
         Timestamp = storableEvent.Timestamp
-        Header = storableEvent.Header
-      }
+        Header = storableEvent.Header }
 
     result
 
@@ -185,14 +180,17 @@ module Storable =
 
     result
 
-  let chunkToStream(streamChunk: StreamChunk<'id, 'event, 'header>) =
+  let chunkToStream (streamChunk: StreamChunk<'id, 'event, 'header>) =
     let events = streamChunk.Events |> List.map toEvent
-    if( events.Head.Version <> 1u) then failwith "First event must have version 1"
+
+    if (events.Head.Version <> 1u) then
+      failwith "First event must have version 1"
+
     let created = events.Head.Timestamp
     let modified = events.Last().Timestamp
+
     { Id = streamChunk.StreamId
       Version = streamChunk.ToSequenceId
       Created = created
       Modified = modified
-      Events = events |> ResizeArray
-      }
+      Events = events |> ResizeArray }

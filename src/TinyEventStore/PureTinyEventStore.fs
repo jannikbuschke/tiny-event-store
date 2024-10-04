@@ -167,4 +167,5 @@ let create<'id, 'state, 'event, 'header, 'command, 'commandHeader,'sideEffect>
     appendEvents<'id, 'state, 'event, 'header, 'sideEffect> zero evolve
 
   let rehydrate = rehydrate<'id, 'state, 'event, 'header> zero evolve
-  (commandHandler, appendEventsHandler, rehydrate)
+  let result = (commandHandler, appendEventsHandler, rehydrate)
+  result

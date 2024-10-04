@@ -1,4 +1,4 @@
-﻿module TinyEventStore.EfEs
+module TinyEventStore.EfEs
 
 open System
 open System.Threading.Tasks
@@ -54,12 +54,10 @@ let loadMultipleStorableStream<'id, 'event, 'header when 'id: equality> (db: DbC
           .ToListAsync()
 
       return Result.Ok(streams |> Seq.map Storable.toStream)
-    with
-    | e ->
+    with e ->
       printfn "error %s %A" e.Message (db.GetType())
 
-      db.Model.GetEntityTypes()
-      |> Seq.iter (fun x -> printfn "entity %s" x.Name)
+      db.Model.GetEntityTypes() |> Seq.iter (fun x -> printfn "entity %s" x.Name)
 
       return Result.Error e.Message
   }
@@ -76,17 +74,19 @@ let loadAllStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContex
           .ToListAsync()
 
       return Result.Ok(streams |> Seq.map Storable.toStream)
-    with
-    | e ->
+    with e ->
       printfn "error %s %A" e.Message (db.GetType())
 
-      db.Model.GetEntityTypes()
-      |> Seq.iter (fun x -> printfn "entity %s" x.Name)
+      db.Model.GetEntityTypes() |> Seq.iter (fun x -> printfn "entity %s" x.Name)
 
       return Result.Error e.Message
   }
 
-let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality> (db: DbContext) (from: uint32) (untilIncluding: uint32) =
+let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
+  (db: DbContext)
+  (from: uint32)
+  (untilIncluding: uint32)
+  =
   task {
     let! events =
       db
@@ -100,19 +100,21 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality> (db: DbCont
     let streams = events.GroupBy(fun x -> x.StreamId)
 
     let streams2 =
-      streams |> Seq.map(fun grouping ->
+      streams
+      |> Seq.map (fun grouping ->
         let streamId = grouping.Key
         let events = grouping |> Seq.toList // |> Seq.map Storable.toEvent |> Seq.toList
+
         let stream =
           { StreamId = streamId
             Events = events
             FromSequenceId = events.Head.SequenceId
             ToSequenceId = events.Last().SequenceId }
 
-        if not(stream.ToSequenceId > stream.FromSequenceId)
-        then failwith ("to sequence id <= From Sequence id")
-        stream
-      )
+        if not (stream.ToSequenceId > stream.FromSequenceId) then
+          failwith ("to sequence id <= From Sequence id")
+
+        stream)
 
     // let streams = events.GroupBy(fun x ->
     //   {
@@ -133,9 +135,14 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
   (events: ('event * 'header) list)
   =
   let db = ctx.GetRequiredService<'Db>()
+
   taskResult {
     let! stream = loadStorableStream<'id, 'event, 'header> db id
-    let result = TinyEventStore.PureStore.appendEvents zero evolve stream (id, events) :> OperationResult<'id, 'state, 'event, 'header>
+
+    let result =
+      TinyEventStore.PureStore.appendEvents zero evolve stream (id, events)
+      :> OperationResult<'id, 'state, 'event, 'header>
+
     return result
   }
 
@@ -148,21 +155,28 @@ let rerunProjection<'state, 'id, 'event, 'header when 'id: equality>
   (untilIncludingSequence: uint32)
   =
   task {
-    let! streamChunks = loadEventsChunk<'state, 'id, 'event, 'header> db fromSequence  (untilIncludingSequence: uint32)
+    let! streamChunks = loadEventsChunk<'state, 'id, 'event, 'header> db fromSequence (untilIncludingSequence: uint32)
 
     let statesAndStreams =
       streamChunks
       |> Seq.map (fun streamChunk ->
         let streamId = streamChunk.StreamId
+
         let existingState, existingChunk =
-          if memory.ContainsKey streamId
-          then memory.Item streamId
-          else zero, StreamChunk<'id, 'event, 'header>.Zero
+          if memory.ContainsKey streamId then
+            memory.Item streamId
+          else
+            zero, StreamChunk<'id, 'event, 'header>.Zero
         // let y = grouping |> Seq.map(fun x -> ())
         // let newChunk = grouping.Key
 
         // let stream = grouping.Key |> Storable.toStream
-        let state = TinyEventStore.PureStore.rehydrateEvents existingState evolve (streamChunk.Events |> Seq.map Storable.toEvent)
+        let state =
+          TinyEventStore.PureStore.rehydrateEvents
+            existingState
+            evolve
+            (streamChunk.Events |> Seq.map Storable.toEvent)
+
         let combinedChunk = streamChunk |> StreamChunk.Append existingChunk
         // let combinedChunk = newChunk
         state, combinedChunk)
@@ -173,28 +187,40 @@ let rerunProjection<'state, 'id, 'event, 'header when 'id: equality>
 let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :> DbContext>
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
-  (services: IServiceProvider) =
+  (services: IServiceProvider)
+  =
   let db = services.GetService<'db>()
-  let memory = System.Collections.Generic.Dictionary<'id, 'state * StreamChunk<'id, 'event, 'header>>()
+
+  let memory =
+    System.Collections.Generic.Dictionary<'id, 'state * StreamChunk<'id, 'event, 'header>>()
 
   task {
     let mutable running = true
     // 1...500
     // 501...1000
     let mutable version = 0u
+
     while running do
       let fromSequence = version + 1u
       let untilIncludingSequence = version + 10u
-      let! streamsAndState = rerunProjection<'state, 'id, 'event, 'header> memory zero evolve db fromSequence untilIncludingSequence
-      streamsAndState |> Seq.iter(fun (state, stream) ->
+
+      let! streamsAndState =
+        rerunProjection<'state, 'id, 'event, 'header> memory zero evolve db fromSequence untilIncludingSequence
+
+      streamsAndState
+      |> Seq.iter (fun (state, stream) ->
         memory.[stream.StreamId] <- (state, stream)
-        ()
-      )
+        ())
+
       version <- untilIncludingSequence
+
       if true then
         running <- false
 
-    let result = memory.Values |> Seq.map (fun (state, stream) -> state, (stream |> Storable.chunkToStream))
+    let result =
+      memory.Values
+      |> Seq.map (fun (state, stream) -> state, (stream |> Storable.chunkToStream))
+
     printfn "result %A" result
     return result |> Seq.toList
   }
@@ -268,13 +294,19 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     //   -> 'id
     //   -> TaskResult<CommandEnvelope<'id, 'command, 'commandHeader>
     //                   -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>, string>
-    prepare: IServiceProvider
-      -> 'id
-      -> TaskResult<CommandEnvelope<'id, 'command, 'commandHeader> -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>, string>
-    appendEvents: IServiceProvider
-      -> 'id
-      -> ('event * 'header) list
-      -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
+    prepare:
+      IServiceProvider
+        -> 'id
+        -> TaskResult<
+          CommandEnvelope<'id, 'command, 'commandHeader>
+            -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>,
+          string
+         >
+    appendEvents:
+      IServiceProvider
+        -> 'id
+        -> ('event * 'header) list
+        -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     rerunProject: IServiceProvider -> Task<('state * Stream<'id, 'event, 'header>) list>
     // rehydrateLatest: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
@@ -285,7 +317,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     // updateEventStore: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
     updateEventStore2: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
   // updateDerivedstate: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> ('derived -> unit) -> unit
-   }
+  }
 
 [<RequireQualifiedAccess>]
 type DbSideEffect =
@@ -324,7 +356,7 @@ let updateDerived
   =
   let derived = derive commandResult
   let entry = db.Entry(derived)
-  entry.CurrentValues.Item"Id" <- commandResult.NewStream.Id
+  entry.CurrentValues.Item "Id" <- commandResult.NewStream.Id
   let dbCmd = projectToDbCommand commandResult.NewEvents
   let insertOrUpdate x = mapToDbOperation db dbCmd x
   insertOrUpdate derived
@@ -333,7 +365,8 @@ let updateDerived
 let updateEventStream2 (db: DbContext) (appendEventResult: OperationResult<'id, 'state, 'event, 'eventHeader>) =
   updateStorableStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
 
-let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect, 'Db when 'Db :> DbContext and 'id: equality>
+let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect, 'Db
+  when 'Db :> DbContext and 'id: equality>
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (decide: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)

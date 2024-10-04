@@ -7,11 +7,6 @@ open FsToolkit.ErrorHandling
 
 type Version = uint
 
-// [<CLIMutable>]
-// type EventProgression =
-//   { Name: string
-//     LastSeqId: int64 option
-//     LastUpdated: DateTimeOffset option }
 
 /// <summary> A container for Events </summary>
 [<CLIMutable>]

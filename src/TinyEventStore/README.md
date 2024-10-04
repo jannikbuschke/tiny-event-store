@@ -1,12 +1,11 @@
-# TinyTypeGen
+# TinyEventStore
 
-[![Nuget](https://img.shields.io/nuget/v/TinyTypegen?logo=nuget)](https://nuget.org/packages/TinyTypegen)
+[![Nuget](https://img.shields.io/nuget/v/TinyEventStore?logo=nuget)](https://nuget.org/packages/TinyEventStore)
 
-This library can generate TypeScript types for C# and F# types or more precisely for their corresponding JSON serialized data. Thus it can be used in JavaScript/TypeScript clients to have a strongly typed interface to a dotnet backend.
-
-F# types like records (including anonymous records) and unions as well as F# collections like `list<'T>`, `Map<'T>` and `Set<'T>` are supported.
+This libry implements a simple event store that can be used to store , retrieve and replay events.
+There is an EF companion implementation TinyEventStore.EF, so different databases can be used.
 
 # Get started
 
-`dotnet add package TinyTypegen`
+`dotnet add package TinyEventStore`
 
