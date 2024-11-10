@@ -29,7 +29,6 @@
         <Compile Include="Ids.fs"/>
         <Compile Include="Types.fs"/>
         <Compile Include="PureTinyEventStore.fs" />
-        <Compile Include="TinyEventStore.fs"/>
         <Compile Include="Projections.fs" />
     </ItemGroup>
 
