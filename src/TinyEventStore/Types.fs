@@ -1,4 +1,4 @@
-﻿namespace TinyEventStore
+namespace TinyEventStore
 
 open System
 open System.Collections.Generic
@@ -21,8 +21,7 @@ type Stream<'id, 'event, 'header> =
 /// summary: Wraps a single Event. This is meant to be serialized to some storage.
 /// </summary>
 and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
-  {
-    SequenceId: uint32
+  { SequenceId: uint32
     StreamId: 'streamId
     Payload: 'event
     EventId: EventId
@@ -32,6 +31,8 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
     Version: Version
     Timestamp: DateTimeOffset
     Header: 'header }
+
+  member this.IsInitialEvent() = this.Version = 1u
 
   static member Create(streamId: 'streamId, payload: 'event, header: 'header, eventNumber: Version) =
     { SequenceId = 0ul
@@ -45,8 +46,12 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
       Header = header }
 
   static member createEventMetadata
-    (payload, header, command: CommandEnvelope<'streamId, 'command,'commandHeader>, eventNumber, correlationId)
-    : EventEnvelope<'streamId, 'event, 'header> =
+    (payload, header, command: CommandEnvelope<'streamId, 'command, 'commandHeader>, eventNumber, correlationId) : EventEnvelope<
+                                                                                                                     'streamId,
+                                                                                                                     'event,
+                                                                                                                     'header
+                                                                                                                    >
+    =
     { SequenceId = 0ul
       StreamId = command.StreamId
       Payload = payload
@@ -65,8 +70,7 @@ and CommandEnvelope<'TId, 'TCommand, 'commandHeader> =
     CausationId: EventId option
     CommandId: CommandId
     ExpectedVersion: uint option
-    Timestamp: DateTimeOffset
-  }
+    Timestamp: DateTimeOffset }
 
 module CommandEnvelope =
   let createCommandEnvelope streamId payload header timestamp version correlationId causationId =
@@ -84,7 +88,7 @@ type CommandEnvelope() =
   static member New(streamId, payload, header) =
     CommandEnvelope.createCommandEnvelope streamId payload header DateTimeOffset.UtcNow None None None
 
-  static member New(streamId, payload, header,version) =
+  static member New(streamId, payload, header, version) =
     CommandEnvelope.createCommandEnvelope streamId payload header DateTimeOffset.UtcNow version None None
 
   static member New(streamId, payload, header, timestamp) =
@@ -93,13 +97,34 @@ type CommandEnvelope() =
   static member New(streamId, payload, header, timestamp, version) =
     CommandEnvelope.createCommandEnvelope streamId payload header timestamp version None None
 
-  static member New(streamId, payload,header, correlationId) =
+  static member New(streamId, payload, header, correlationId) =
     CommandEnvelope.createCommandEnvelope streamId payload header DateTimeOffset.Now None (Some correlationId) None
 
   static member New(streamId, payload, header, timestamp, version, correlationId, causationId) =
-    CommandEnvelope.createCommandEnvelope streamId payload header timestamp version (Some correlationId) (Some causationId)
+    CommandEnvelope.createCommandEnvelope
+      streamId
+      payload
+      header
+      timestamp
+      version
+      (Some correlationId)
+      (Some causationId)
+
+type StateChunk<'id, 'state, 'event, 'header> =
+  { State: 'state
+    Stream: Stream<'id, 'event, 'header>
+    EventsChunk: EventEnvelope<'id, 'event, 'header> list }
+
+type StateHead<'id, 'state, 'event, 'header> =
+  { State: 'state
+    Stream: Stream<'id, 'event, 'header>
+    Events: EventEnvelope<'id, 'event, 'header> list }
+
 
 type OperationResult<'id, 'state, 'event, 'header> =
+  abstract New: StateChunk<'id, 'state, 'event, 'header>
+  abstract Previous: StateHead<'id, 'state, 'event, 'header>
+  abstract ShouldDelete: bool
   abstract NewState: 'state
   abstract NewStream: Stream<'id, 'event, 'header>
   abstract NewEvents: EventEnvelope<'id, 'event, 'header> list
@@ -113,9 +138,24 @@ type AppendEventsResult<'id, 'state, 'event, 'header> =
     NewEvents: EventEnvelope<'id, 'event, 'header> list
     PreviousState: 'state
     PreviousStream: Stream<'id, 'event, 'header>
-    PreviousEvents: EventEnvelope<'id, 'event, 'header> list }
+    PreviousEvents: EventEnvelope<'id, 'event, 'header> list
+    ShouldDelete: bool }
+
+  member this.IsNew() =
+    (this.NewEvents.Item 0).IsInitialEvent()
 
   interface OperationResult<'id, 'state, 'event, 'header> with
+    member this.New =
+      { State = this.NewState
+        Stream = this.NewStream
+        EventsChunk = this.NewEvents }
+
+    member this.Previous =
+      { State = this.NewState
+        Stream = this.NewStream
+        Events = this.NewEvents }
+
+    member this.ShouldDelete = this.ShouldDelete
     member this.NewEvents = this.NewEvents
     member this.NewState = this.NewState
     member this.NewStream = this.NewStream
@@ -130,15 +170,27 @@ type CommandResult<'id, 'state, 'event, 'header, 'sideEffect> =
     SideEffects: 'sideEffect list
     PreviousState: 'state
     PreviousStream: Stream<'id, 'event, 'header>
-    PreviousEvents: EventEnvelope<'id, 'event, 'header> list }
+    PreviousEvents: EventEnvelope<'id, 'event, 'header> list
+    ShouldDelete: bool }
 
   interface OperationResult<'id, 'state, 'event, 'header> with
+    member this.New =
+      { State = this.NewState
+        Stream = this.NewStream
+        EventsChunk = this.NewEvents }
+
+    member this.Previous =
+      { State = this.NewState
+        Stream = this.NewStream
+        Events = this.NewEvents }
+
     member this.NewEvents = this.NewEvents
     member this.NewState = this.NewState
     member this.NewStream = this.NewStream
     member this.PreviousEvents = this.PreviousEvents
     member this.PreviousState = this.PreviousState
     member this.PreviousStream = this.NewStream
+    member this.ShouldDelete = this.ShouldDelete
 
 type Decision<'event, 'header, 'sideEffect> = Result<('event * 'header) list * 'sideEffect list, string>
 
@@ -159,3 +211,8 @@ type ImpureStore<'id, 'state, 'command, 'event, 'header, 'sideEffect> =
   { decide: Decide<'state, 'command, 'event, 'header, 'sideEffect>
     append: EventEnvelope<'id, 'event, 'header> -> TaskResult<unit, string>
     rehydrate: RehydrateFn<'id, 'state, 'event, 'header> }
+
+type Aggregate<'id, 'state, 'event, 'header> =
+  { zero: 'state
+    evolve: Evolve<'id, 'state, 'event, 'header>
+    shouldDelete: StateChunk<'id, 'state, 'event, 'header> -> StateHead<'id, 'state, 'event, 'header> -> bool }

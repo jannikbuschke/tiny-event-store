@@ -128,8 +128,9 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
   }
 
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
-  (zero: 'state)
-  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (aggregate: Aggregate<'id, 'state, 'event, 'header>)
+  // (zero: 'state)
+  // (evolve: Evolve<'id, 'state, 'event, 'header>)
   (ctx: IServiceProvider)
   (id: 'id)
   (events: ('event * 'header) list)
@@ -140,7 +141,7 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
     let! stream = loadStorableStream<'id, 'event, 'header> db id
 
     let result =
-      TinyEventStore.PureStore.appendEvents zero evolve stream (id, events)
+      TinyEventStore.PureStore.appendEvents aggregate stream (id, events)
       :> OperationResult<'id, 'state, 'event, 'header>
 
     return result
@@ -275,8 +276,7 @@ let rehydrateAll<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id
   }
 
 let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext and 'id: equality>
-  zero
-  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (executeCommand: PureDecide<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect>)
   (ctx: IServiceProvider)
   =
@@ -286,15 +286,10 @@ let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when '
   fun (id: 'id) ->
     id
     |> loadEvents
-    |> TaskResult.map (fun x -> TinyEventStore.PureStore.makeCommandHandler zero evolve executeCommand x)
+    |> TaskResult.map (fun x -> TinyEventStore.PureStore.makeCommandHandler aggregate executeCommand x)
 
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext> =
-  {
-    // decide: IServiceProvider
-    //   -> 'id
-    //   -> TaskResult<CommandEnvelope<'id, 'command, 'commandHeader>
-    //                   -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>, string>
-    prepare:
+  { prepare:
       IServiceProvider
         -> 'id
         -> TaskResult<
@@ -308,22 +303,20 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> ('event * 'header) list
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     rerunProject: IServiceProvider -> Task<('state * Stream<'id, 'event, 'header>) list>
-    // rehydrateLatest: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: IServiceProvider -> 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     rehydrateAll: IServiceProvider -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     rehydrate: Stream<'id, 'event, 'header> -> 'state
     getDb: IServiceProvider -> 'Db
-    // updateEventStore: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
     updateEventStore2: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
-  // updateDerivedstate: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> ('derived -> unit) -> unit
-  }
+    aggregate: Aggregate<'id, 'state, 'event, 'header> }
 
 [<RequireQualifiedAccess>]
 type DbSideEffect =
   | Create
   | Update
   | Delete
+  | DoNothing
 
 let projectToDbCommand (events: EventEnvelope<'id, 'event, 'header> list) =
   if (events.Item 0).Version = 1u then
@@ -336,6 +329,7 @@ let mapToDbOperation (db: DbContext) =
   | DbSideEffect.Create -> db.Add >> ignore
   | DbSideEffect.Update -> db.Update >> ignore
   | DbSideEffect.Delete -> db.Remove >> ignore
+  | DbSideEffect.DoNothing -> fun _ -> ()
 
 let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, 'header>) events =
   let stream = Storable.toStorableStream stream
@@ -349,6 +343,19 @@ let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, '
   events |> List.iter (db.Add >> ignore)
   ()
 
+let updateDerivedWithDbOperation
+  (db: DbContext)
+  (commandResult: OperationResult<'Id, 'state, 'Event, 'EventHeader>)
+  (derive: OperationResult<'Id, 'state, 'Event, 'EventHeader> -> 'derived * DbSideEffect)
+  =
+  let derived, dbCmd = derive commandResult
+  let entry = db.Entry(derived)
+  // this is not explicit, should be refactored mayb
+  entry.CurrentValues.Item "Id" <- commandResult.NewStream.Id
+  let insertOrUpdate x = mapToDbOperation db dbCmd x
+  insertOrUpdate derived
+  ()
+
 let updateDerived
   (db: DbContext)
   (commandResult: OperationResult<'Id, 'state, 'Event, 'EventHeader>)
@@ -356,6 +363,7 @@ let updateDerived
   =
   let derived = derive commandResult
   let entry = db.Entry(derived)
+  // this is not explicit, should be refactored mayb
   entry.CurrentValues.Item "Id" <- commandResult.NewStream.Id
   let dbCmd = projectToDbCommand commandResult.NewEvents
   let insertOrUpdate x = mapToDbOperation db dbCmd x
@@ -371,34 +379,68 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (decide: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
   : EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db> =
-  let rehydrateRaw = TinyEventStore.PureStore.rehydrate zero evolve
+
+  let aggregate =
+    { zero = zero
+      evolve = evolve
+      shouldDelete = fun _ _ -> false }
 
   let prepare =
-    prepare<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db> zero evolve decide
+    prepare<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db> aggregate decide
 
   let rehydrateLatest2 = efRehydrate2<'id, 'state, 'event, 'header, 'Db> zero evolve
   let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
   let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
-  let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> zero evolve
+  let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
   let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
-  // let appendEvents = efAppendEvents
-  { //decide = commandHandler
-    prepare = prepare
-    //append = appendEventsHandler
-    //rehydrateLatest = rehydrateLatest
+
+  { prepare = prepare
+    aggregate =
+      { zero = zero
+        evolve = evolve
+        shouldDelete = fun _ _ -> false }
     rehydrateLatest2 = rehydrateLatest2
     rehydrateMany = rehydrateMany
     rehydrateAll = rehydrateAll
     rehydrate = TinyEventStore.PureStore.rehydrate zero evolve
     getDb = fun ctx -> ctx.GetService<'Db>()
     appendEvents = appendEvents
-    // rerunProjection = rerunProjection
-    // updateEventStore =
-    //   fun ctx operationResult ->
-    //     let db = ctx.GetService<'Db>()
-    //     updateEventStream db operationResult
     updateEventStore2 =
       fun ctx operationResult ->
         let db = ctx.GetService<'Db>()
         updateEventStream2 db operationResult
     rerunProject = rerunProjection }
+
+
+type Configuration<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db when 'Db :> DbContext and 'id: equality>
+  () =
+  static member Configure
+    (
+      aggregate: Aggregate<'id, 'state, 'event, 'header>,
+      decide: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'eventHeader, unit>
+    ) : EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit, 'Db> =
+    let zero = aggregate.zero
+    let evolve = aggregate.evolve
+
+    let prepare =
+      prepare<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit, 'Db> aggregate decide
+
+    let rehydrateLatest2 = efRehydrate2<'id, 'state, 'event, 'header, 'Db> zero evolve
+    let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
+    let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
+    let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
+    let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
+
+    { prepare = prepare
+      aggregate = aggregate
+      rehydrateLatest2 = rehydrateLatest2
+      rehydrateMany = rehydrateMany
+      rehydrateAll = rehydrateAll
+      rehydrate = TinyEventStore.PureStore.rehydrate zero evolve
+      getDb = fun ctx -> ctx.GetService<'Db>()
+      appendEvents = appendEvents
+      updateEventStore2 =
+        fun ctx operationResult ->
+          let db = ctx.GetService<'Db>()
+          updateEventStream2 db operationResult
+      rerunProject = rerunProjection }

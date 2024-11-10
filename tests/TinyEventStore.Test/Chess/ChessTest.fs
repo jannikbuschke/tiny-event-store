@@ -1,4 +1,4 @@
-﻿module TinyEventStore.Test.Chess.ChessTest
+module TinyEventStore.Test.Chess.ChessTest
 
 open System
 open System.Diagnostics
@@ -53,14 +53,14 @@ let ``do some and save changes`` () =
 
     let id = GameId.FromRaw 1
 
-    let! result1 = TinyEventStore.Test.Chess.Handler.handleCommand httpContext (id, Chess.Command.CreateGame)
+    let! result1 = TinyEventStore.Test.Chess.Handler.handleGameCommand httpContext (id, Chess.Command.CreateGame)
 
     use scope1 = serviceProvider.CreateScope()
     let httpContext = DefaultHttpContext(RequestServices = scope1.ServiceProvider)
     do! System.Threading.Tasks.Task.Delay(10)
 
     let! result2 =
-      TinyEventStore.Test.Chess.Handler.handleCommand
+      TinyEventStore.Test.Chess.Handler.handleGameCommand
         httpContext
         (id,
          Chess.Command.MovePiece
@@ -82,7 +82,7 @@ let ``Many events on one stream`` () =
     use scope0 = serviceProvider.CreateScope()
     let httpContext = DefaultHttpContext(RequestServices = scope0.ServiceProvider)
     let id = GameId.FromRaw 1
-    let! result1 = TinyEventStore.Test.Chess.Handler.handleCommand httpContext (id, Chess.Command.CreateGame)
+    let! result1 = TinyEventStore.Test.Chess.Handler.handleGameCommand httpContext (id, Chess.Command.CreateGame)
 
     let move () =
       task {
@@ -90,7 +90,7 @@ let ``Many events on one stream`` () =
         let httpContext = DefaultHttpContext(RequestServices = scope0.ServiceProvider)
 
         let! result2 =
-          TinyEventStore.Test.Chess.Handler.handleCommand
+          TinyEventStore.Test.Chess.Handler.handleGameCommand
             httpContext
             (id,
              Chess.Command.MovePiece

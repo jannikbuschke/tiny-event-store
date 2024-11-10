@@ -22,6 +22,7 @@
         <Compile Include="Chess\Db.fs" />
         <Compile Include="Chess\Handler.fs" />
         <Compile Include="Chess\ChessTest.fs" />
+        <Compile Include="Chess\Delete.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
         <Compile Include="RerunProjection.fs" />

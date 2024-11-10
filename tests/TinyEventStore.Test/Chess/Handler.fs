@@ -1,12 +1,10 @@
-﻿module TinyEventStore.Test.Chess.Handler
+module TinyEventStore.Test.Chess.Handler
 
-open System
 open System.Collections.Generic
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Logging
 open TinyEventStore
 open FsToolkit.ErrorHandling
-open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open TinyEventStore.Test.Chess.Db
 
@@ -31,7 +29,11 @@ let store =
         Result.Ok(eventEnvelopes, [])
       | Error errorValue -> Result.Error errorValue)
 
-let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
+let appendEvents (ctx:HttpContext)(streamId:Id,events: Event list)=
+    let events = events |>List.mapi(fun i e -> e,Dictionary())
+    store.appendEvents ctx.RequestServices streamId events
+
+let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
   taskResult {
     let logger = ctx.RequestServices.GetService<ILogger<string>>()
     // let db = ctx.RequestServices.GetService<InvoicingDb>()

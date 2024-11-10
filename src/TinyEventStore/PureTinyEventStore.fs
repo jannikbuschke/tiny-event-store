@@ -16,9 +16,7 @@ let rehydrateEvents<'id, 'state, 'event, 'header>
     (innerState, e.Version)
 
   let state, _ =
-    events
-    |> Seq.sortBy _.Version
-    |> Seq.fold evolveWithVersionCheck (zero, 0u)
+    events |> Seq.sortBy _.Version |> Seq.fold evolveWithVersionCheck (zero, 0u)
 
   state
 
@@ -28,23 +26,22 @@ let rehydrate<'id, 'state, 'event, 'header>
   (stream: Stream<'id, 'event, 'header>)
   =
   rehydrateEvents zero evolve stream.Events
-  // let evolveWithVersionCheck (state, version) e =
-  //   if e.Version <= version then
-  //     failwith "Events are not ordered"
-  //
-  //   let innerState = evolve state e
-  //   (innerState, e.Version)
-  //
-  // let state, _ =
-  //   stream.Events
-  //   |> Seq.sortBy _.Version
-  //   |> Seq.fold evolveWithVersionCheck (zero, 0u)
-  //
-  // state
+// let evolveWithVersionCheck (state, version) e =
+//   if e.Version <= version then
+//     failwith "Events are not ordered"
+//
+//   let innerState = evolve state e
+//   (innerState, e.Version)
+//
+// let state, _ =
+//   stream.Events
+//   |> Seq.sortBy _.Version
+//   |> Seq.fold evolveWithVersionCheck (zero, 0u)
+//
+// state
 
 let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
-  (zero: 'state)
-  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (currenState: Stream<'id, 'event, 'header>)
   =
   fun (id: 'id, events: ('event * 'header) list) ->
@@ -54,7 +51,7 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
       |> Option.map _.Version
       |> Option.defaultValue 0u
 
-    let oldState = rehydrate zero evolve currenState
+    let oldState = rehydrate aggregate.zero aggregate.evolve currenState
 
     let newEvents = events
 
@@ -62,19 +59,32 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
       newEvents
       |> List.mapi (fun i (evt, header) -> EventEnvelope.Create(id, evt, header, ((uint i) + lastEventNumber + 1u)))
 
-    let newState = newEvents |> List.fold evolve oldState
+    let newState = newEvents |> List.fold aggregate.evolve oldState
 
     let lastEvent = newEvents |> List.last
 
-    let combinedEvents = (currenState.Events |> Seq.toList)  @ newEvents
+    let combinedEvents = (currenState.Events |> Seq.toList) @ newEvents
 
     let newStream =
       { currenState with
           Events = combinedEvents |> ResizeArray
           Version = lastEvent.Version }
 
+    let newStateChunk =
+      { State = newState
+        Stream = newStream
+        EventsChunk = newEvents }
+
+    let previousState =
+      { State = oldState
+        Stream = currenState
+        Events = currenState.Events |> Seq.toList }
+
+    let isDeleted = aggregate.shouldDelete newStateChunk previousState
+
     let result: AppendEventsResult<'id, 'state, 'event, 'header> =
       { NewState = newState
+        ShouldDelete = isDeleted
         NewStream = newStream
         NewEvents = newEvents
         PreviousState = oldState
@@ -83,18 +93,17 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
 
     result
 
-let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 'sideEffect>
-  (zero: 'state)
-  (evolve: Evolve<'id, 'state, 'event, 'header>)
-  (executeCommand: PureDecide<'id, 'state, 'command,'commandHeader, 'event, 'header, 'sideEffect>)
+let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect>
+  (aggregate: Aggregate<'id, 'state, 'event, 'header>)
+  (executeCommand: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
   (currentStreamState: Stream<'id, 'event, 'header>)
   =
-  fun (command: CommandEnvelope<'id, 'command,'commandHeader>) ->
+  fun (command: CommandEnvelope<'id, 'command, 'commandHeader>) ->
     result {
       let highestEventNumber =
-        match currentStreamState.Events|>Seq.toList with
+        match currentStreamState.Events |> Seq.toList with
         | [] -> -1L
-        | elements -> elements |> Seq.map(fun x -> int64 x.Version) |> Seq.max
+        | elements -> elements |> Seq.map (fun x -> int64 x.Version) |> Seq.max
       // let highestEventNumber = currentStreamState.Events |> Seq.map _.Version |> Seq.max
       let lastEventNumber =
         currentStreamState.Events
@@ -103,7 +112,7 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
         |> Option.map _.Version
         |> Option.defaultValue 0u
 
-      let oldState = rehydrate zero evolve currentStreamState
+      let oldState = rehydrate aggregate.zero aggregate.evolve currentStreamState
 
       let isExpectedVersion =
         match command.ExpectedVersion, lastEventNumber with
@@ -129,7 +138,7 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
             command.CorrelationId
           ))
 
-      let newState = newEvents |> List.fold evolve oldState
+      let newState = newEvents |> List.fold aggregate.evolve oldState
 
 
       let oldEvents = currentStreamState.Events |> Seq.toList
@@ -140,8 +149,20 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
       let newStream =
         { currentStreamState with
             Modified = lastEvent.Timestamp
-            Events = combinedEvents// |> Seq.toList
+            Events = combinedEvents
             Version = lastEvent.Version }
+
+      let newStateChunk =
+        { State = newState
+          Stream = newStream
+          EventsChunk = newEvents }
+
+      let previousState =
+        { State = oldState
+          Stream = currentStreamState
+          Events = oldEvents }
+
+      let isDeleted = aggregate.shouldDelete newStateChunk previousState
 
       let result: CommandResult<'id, 'state, 'event, 'header, 'sideEffect> =
         { NewState = newState
@@ -150,22 +171,24 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command,'commandHeader, 's
           PreviousState = oldState
           PreviousStream = currentStreamState
           PreviousEvents = (oldEvents |> Seq.toList)
+          ShouldDelete = isDeleted
           SideEffects = sideEffects }
 
       return result
     }
 
-let create<'id, 'state, 'event, 'header, 'command, 'commandHeader,'sideEffect>
-  (zero: 'state)
-  (evolve: Evolve<'id, 'state, 'event, 'header>)
-  (executeCommand: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
-  =
-  let commandHandler =
-    makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect> zero evolve executeCommand
-
-  let appendEventsHandler =
-    appendEvents<'id, 'state, 'event, 'header, 'sideEffect> zero evolve
-
-  let rehydrate = rehydrate<'id, 'state, 'event, 'header> zero evolve
-  let result = (commandHandler, appendEventsHandler, rehydrate)
-  result
+// let create<'id, 'state, 'event, 'header, 'command, 'commandHeader,'sideEffect>
+//   (zero: 'state)
+//   (evolve: Evolve<'id, 'state, 'event, 'header>)
+//   (executeCommand: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
+//   =
+//   let commandHandler =
+//     makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect> zero evolve executeCommand
+//
+//   let appendEventsHandler =
+//     appendEvents<'id, 'state, 'event, 'header, 'sideEffect> zero evolve
+//
+//   let rehydrate = rehydrate<'id, 'state, 'event, 'header> zero evolve
+//   let result = (commandHandler, appendEventsHandler, rehydrate)
+//   result
+//   result
