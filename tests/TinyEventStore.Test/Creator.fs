@@ -1,4 +1,4 @@
-﻿module TinyEventStore.Creator
+module TinyEventStore.Creator
 
 //based on https://www.planetgeek.ch/2021/04/27/type-safety-across-net-and-typescript-testing-json-serialization-and-deserialization/
 

@@ -1,4 +1,4 @@
-﻿module TinyEventStore.Test.RerunProjection
+module TinyEventStore.Test.RerunProjection
 
 open System
 open Microsoft.AspNetCore.Http
