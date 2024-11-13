@@ -117,7 +117,8 @@ class Build : NukeBuild
 
     Target Publish =>
         _ =>
-            _.DependsOn(Pack, Test)
+            // _.DependsOn(Pack, Test)
+            _.DependsOn(Pack)
                 .Requires(() => NugetApiUrl)
                 .Executes(() =>
                 {

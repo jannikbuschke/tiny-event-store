@@ -8,7 +8,6 @@ open TinyEventStore
 open FsToolkit.ErrorHandling
 open TinyEventStore.Ef.Storables
 open System.Linq
-open Projections
 
 let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
   task {
@@ -54,13 +53,13 @@ let loadMultipleStorableStream<'id, 'event, 'header when 'id: equality> (db: DbC
           .Where(fun x -> ids.Contains(x.Id))
           .ToListAsync()
 
-      return Result.Ok(streams |> Seq.map Storable.toStream)
+      return Ok(streams |> Seq.map Storable.toStream)
     with e ->
       printfn "error %s %A" e.Message (db.GetType())
 
       db.Model.GetEntityTypes() |> Seq.iter (fun x -> printfn "entity %s" x.Name)
 
-      return Result.Error e.Message
+      return Error e.Message
   }
 
 let loadAllStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) =
@@ -74,13 +73,13 @@ let loadAllStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContex
           .AsNoTracking()
           .ToListAsync()
 
-      return Result.Ok(streams |> Seq.map Storable.toStream)
+      return Ok(streams |> Seq.map Storable.toStream)
     with e ->
       printfn "error %s %A" e.Message (db.GetType())
 
       db.Model.GetEntityTypes() |> Seq.iter (fun x -> printfn "entity %s" x.Name)
 
-      return Result.Error e.Message
+      return Error e.Message
   }
 
 let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
@@ -296,7 +295,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
             -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>,
           string
          >
-    projections: IProjection list
+    // projections: IProjection list
     appendEvents:
       IServiceProvider
         -> 'id
@@ -443,7 +442,6 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
       { zero = zero
         evolve = evolve
         shouldDelete = fun _ _ -> false }
-    projections = []
     rehydrateLatest2 = rehydrateLatest2
     rehydrateMany = rehydrateMany
     rehydrateAll = rehydrateAll
@@ -519,8 +517,6 @@ type Configuration() =
 
     { prepare = prepare
       applyOperationResultToProjections = applyResultToProjections
-      // fun serviceProvider result -> projections |> List.iter (fun p -> p.Apply serviceProvider result)
-      projections = []
       aggregate = aggregate
       rehydrateLatest2 = rehydrateLatest2
       rehydrateMany = rehydrateMany
