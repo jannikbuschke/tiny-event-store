@@ -115,11 +115,13 @@ type StateChunk<'id, 'state, 'event, 'header> =
     Stream: Stream<'id, 'event, 'header>
     EventsChunk: EventEnvelope<'id, 'event, 'header> list }
 
+  member this.IsNew() =
+    (this.EventsChunk.Item 0).IsInitialEvent()
+
 type StateHead<'id, 'state, 'event, 'header> =
   { State: 'state
     Stream: Stream<'id, 'event, 'header>
     Events: EventEnvelope<'id, 'event, 'header> list }
-
 
 type OperationResult<'id, 'state, 'event, 'header> =
   abstract New: StateChunk<'id, 'state, 'event, 'header>

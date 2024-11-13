@@ -38,27 +38,30 @@ services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Serilog.Log.
 let serviceProvider = services.BuildServiceProvider()
 
 serviceProvider.GetService<ChessDb>().Database.EnsureDeleted() |> ignore
-
 serviceProvider.GetService<ChessDb>().Database.EnsureCreated() |> ignore
 
-let settingsId = GameId.FromRaw 2
-let id = GameId.FromRaw 1
-
+let createHttpContext () =
+  let scope0 = serviceProvider.CreateScope()
+  DefaultHttpContext(RequestServices = scope0.ServiceProvider)
 
 [<Fact>]
 let ``Delete`` () =
   taskResult {
-    use scope0 = serviceProvider.CreateScope()
-    let httpContext = DefaultHttpContext(RequestServices = scope0.ServiceProvider)
+    let httpContext = createHttpContext ()
+    let id = GameId.FromRaw 1
 
-    let! result0 =
-      (id, [ Chess.Event.GameCreated defaultPosition ])
-      |> Handler.appendEvents httpContext
-
-    let! result1 = Handler.handleGameCommand httpContext (id, Chess.Command.Delete)
+    let! _ = (id, [ GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
 
     let store = Handler.store.getDb httpContext.RequestServices
+    let! item = store.ChessGames.FirstAsync()
+    TinyEventStore.Check.expect <@ item.Id = id @>
 
+    let httpContext = createHttpContext ()
+    let! _ = Handler.handleGameCommand httpContext (id, Command.Delete)
+
+    let! item = store.ChessGames.FirstOrDefaultAsync()
+    Assert.Null item
+    // TinyEventStore.Check.expect <@ box item = null @>
     return ()
   }
   |> TaskResult.mapError (fun x ->

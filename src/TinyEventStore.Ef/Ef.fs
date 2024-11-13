@@ -8,6 +8,7 @@ open TinyEventStore
 open FsToolkit.ErrorHandling
 open TinyEventStore.Ef.Storables
 open System.Linq
+open Projections
 
 let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
   task {
@@ -129,8 +130,6 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
 
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
-  // (zero: 'state)
-  // (evolve: Evolve<'id, 'state, 'event, 'header>)
   (ctx: IServiceProvider)
   (id: 'id)
   (events: ('event * 'header) list)
@@ -297,6 +296,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
             -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>,
           string
          >
+    projections: IProjection list
     appendEvents:
       IServiceProvider
         -> 'id
@@ -309,7 +309,21 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     rehydrate: Stream<'id, 'event, 'header> -> 'state
     getDb: IServiceProvider -> 'Db
     updateEventStore2: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
-    aggregate: Aggregate<'id, 'state, 'event, 'header> }
+    applyOperationResultToProjections: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
+
+    applyCommand:
+      IServiceProvider
+        -> ('id * CommandEnvelope<'id, 'command, 'commandHeader>)
+        -> TaskResult<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>
+    applyEvents:
+      IServiceProvider
+        -> 'id * ('event * 'header) list
+        -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
+    aggregate: Aggregate<'id, 'state, 'event, 'header>
+    saveChangesAsync: IServiceProvider -> TaskResult<unit, string>
+
+  }
+
 
 [<RequireQualifiedAccess>]
 type DbSideEffect =
@@ -330,6 +344,16 @@ let mapToDbOperation (db: DbContext) =
   | DbSideEffect.Update -> db.Update >> ignore
   | DbSideEffect.Delete -> db.Remove >> ignore
   | DbSideEffect.DoNothing -> fun _ -> ()
+
+let getDefaultDbOperation (operationResult: OperationResult<_, _, _, _>) =
+  let isNew = operationResult.New.IsNew()
+  let shouldDelete = operationResult.ShouldDelete
+
+  match isNew, shouldDelete with
+  | true, true -> DbSideEffect.DoNothing
+  | true, false -> DbSideEffect.Create
+  | false, true -> DbSideEffect.Delete
+  | false, false -> DbSideEffect.Update
 
 let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, 'header>) events =
   let stream = Storable.toStorableStream stream
@@ -394,30 +418,68 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
   let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
   let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
 
+  let updateEventStore2 (ctx: IServiceProvider) operationResult =
+    let db = ctx.GetService<'Db>()
+    updateEventStream2 db operationResult
+
+  // let applyEvents (ctx: IServiceProvider) (streamId, events) =
+  //   taskResult {
+  //     let! result = appendEvents ctx streamId events
+  //     updateEventStore2 ctx result
+  //     // applyOperationResultToProjections ctx.RequestServices result
+  //     return result
+  //   }
+  //
+  // let applyCommand serviceProvider (id, command) =
+  //   taskResult {
+  //     let! run = prepare serviceProvider id
+  //     let! result = run command
+  //     updateEventStore2 serviceProvider result
+  //     return result
+  //   }
+
   { prepare = prepare
     aggregate =
       { zero = zero
         evolve = evolve
         shouldDelete = fun _ _ -> false }
+    projections = []
     rehydrateLatest2 = rehydrateLatest2
     rehydrateMany = rehydrateMany
     rehydrateAll = rehydrateAll
     rehydrate = TinyEventStore.PureStore.rehydrate zero evolve
     getDb = fun ctx -> ctx.GetService<'Db>()
+    applyOperationResultToProjections = fun _ _ -> ()
     appendEvents = appendEvents
-    updateEventStore2 =
-      fun ctx operationResult ->
-        let db = ctx.GetService<'Db>()
-        updateEventStream2 db operationResult
-    rerunProject = rerunProjection }
+    updateEventStore2 = updateEventStore2
+    // fun ctx operationResult ->
+    //   let db = ctx.GetService<'Db>()
+    //   updateEventStream2 db operationResult
+    rerunProject = rerunProjection
+    applyCommand = fun _ _ -> failwith "Not Implemented1"
+    applyEvents = fun _ _ -> failwith "Not Implemented2"
+    saveChangesAsync = fun _ -> failwith "Not Implemented3" }
 
+type IEfProjection<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext> =
+  abstract member Apply: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
 
-type Configuration<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db when 'Db :> DbContext and 'id: equality>
-  () =
-  static member Configure
+type EfProjection<'id, 'state, 'event, 'header, 'a, 'Db when 'Db :> DbContext and 'a: not struct>
+  (f: OperationResult<'id, 'state, 'event, 'header> -> 'a) =
+  interface IEfProjection<'id, 'state, 'event, 'header, 'Db> with
+    member _.Apply (ctx) (op) =
+      let db = ctx.GetRequiredService<'Db>()
+      let dbOp0 = op |> getDefaultDbOperation
+      let dbOp = dbOp0 |> mapToDbOperation db
+      let a = op |> f
+      a |> dbOp
+
+type Configuration() =
+  static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
+    when 'Db :> DbContext and 'id: equality>
     (
       aggregate: Aggregate<'id, 'state, 'event, 'header>,
-      decide: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'eventHeader, unit>
+      decide: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit>,
+      projections: IEfProjection<'id, 'state, 'event, 'header, 'Db> list
     ) : EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit, 'Db> =
     let zero = aggregate.zero
     let evolve = aggregate.evolve
@@ -431,7 +493,34 @@ type Configuration<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db w
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
     let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
 
+    let applyResultToProjections serviceProvider result =
+      projections |> List.iter (fun p -> p.Apply serviceProvider result)
+
+    let updateEventStore2 (ctx: IServiceProvider) operationResult =
+      let db = ctx.GetService<'Db>()
+      updateEventStream2 db operationResult
+
+    let applyEvents (ctx: IServiceProvider) (streamId, events) =
+      taskResult {
+        let! result = appendEvents ctx streamId events
+        updateEventStore2 ctx result
+        applyResultToProjections ctx result
+        return result
+      }
+
+    let applyCommand serviceProvider (id, command) =
+      taskResult {
+        let! run = prepare serviceProvider id
+        let! result = run command
+        updateEventStore2 serviceProvider result
+        applyResultToProjections serviceProvider result
+        return result
+      }
+
     { prepare = prepare
+      applyOperationResultToProjections = applyResultToProjections
+      // fun serviceProvider result -> projections |> List.iter (fun p -> p.Apply serviceProvider result)
+      projections = []
       aggregate = aggregate
       rehydrateLatest2 = rehydrateLatest2
       rehydrateMany = rehydrateMany
@@ -439,8 +528,17 @@ type Configuration<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db w
       rehydrate = TinyEventStore.PureStore.rehydrate zero evolve
       getDb = fun ctx -> ctx.GetService<'Db>()
       appendEvents = appendEvents
-      updateEventStore2 =
-        fun ctx operationResult ->
-          let db = ctx.GetService<'Db>()
-          updateEventStream2 db operationResult
-      rerunProject = rerunProjection }
+      applyCommand = applyCommand
+      applyEvents = applyEvents
+      updateEventStore2 = updateEventStore2
+      // fun ctx operationResult ->
+      //   let db = ctx.GetService<'Db>()
+      //   updateEventStream2 db operationResult
+      rerunProject = rerunProjection
+      saveChangesAsync =
+        fun (ctx) ->
+          taskResult {
+            let db = ctx.GetService<'Db>()
+            let! _ = db.SaveChangesAsync()
+            return ()
+          } }

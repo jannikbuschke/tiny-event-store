@@ -36,11 +36,27 @@ type ChessEventHeader = Dictionary<string, obj>
 
 type ChessEventEnvelope = EventEnvelope<Id, GameEvent, ChessEventHeader>
 
+[<CLIMutable>]
+type ChessGameListItem = { Id: Id; IsFinished: bool }
+
+
 type ChessDb =
   inherit DbContext
   new(options: DbContextOptions<ChessDb>) = { inherit DbContext(options) }
 
+  [<DefaultValue>]
+  val mutable private chessGames: DbSet<ChessGameListItem>
+
+  member this.ChessGames
+    with get () = this.chessGames
+    and set v = this.chessGames <- v
+
   override this.OnModelCreating(modelBuilder) =
+    modelBuilder.Entity<ChessGameListItem>(fun e ->
+      e.Property(fun x -> x.Id).HasConversion(Id.ToRaw, Id.FromRaw) |> ignore
+
+      ())
+    |> ignore
 
     modelBuilder.AddMultiEventStore2<Id, int64, string>(
       (Id.ToRaw, Id.FromRaw),

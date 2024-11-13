@@ -13,6 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="Check.fs" />
         <Compile Include="Invoices\Invoice.fs" />
         <Compile Include="Invoices\InvoiceProjections.fs" />
         <Compile Include="Invoices\InvoiceDb.fs" />
@@ -61,6 +62,8 @@
 <!--        <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1"/>-->
         <PackageReference Include="Serilog.Sinks.Seq" Version="4.0.0" />
         <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
+        <PackageReference Include="Unquote" Version="7.0.0" />
+        <PackageReference Include="DEdge.Diffract" Version="0.3.0" />
     </ItemGroup>
 
     <ItemGroup>
