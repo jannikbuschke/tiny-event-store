@@ -9,10 +9,6 @@ open FsToolkit.ErrorHandling
 open TinyEventStore.Ef.Storables
 open Queries
 open EfUtils
-// Todo
-// do a little more cleanup
-// and implement projection replay (189)
-
 
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
@@ -26,14 +22,13 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
     let! stream = loadStorableStream<'id, 'event, 'header> db id
 
     let result =
-      TinyEventStore.PureStore.appendEvents aggregate stream (id, events)
-      :> OperationResult<'id, 'state, 'event, 'header>
+      PureStore.appendEvents aggregate stream (id, events) :> OperationResult<'id, 'state, 'event, 'header>
 
     return result
   }
 
 let rerunProjection<'state, 'id, 'event, 'header when 'id: equality>
-  (memory: System.Collections.Generic.Dictionary<'id, 'state * StreamChunk<'id, 'event, 'header>>)
+  (memory: Collections.Generic.Dictionary<'id, 'state * StreamChunk<'id, 'event, 'header>>)
   (zero: 'state)
   (evolve: Evolve<'id, 'state, 'event, 'header>)
   (db: DbContext)
@@ -53,18 +48,11 @@ let rerunProjection<'state, 'id, 'event, 'header when 'id: equality>
             memory.Item streamId
           else
             zero, StreamChunk<'id, 'event, 'header>.Zero
-        // let y = grouping |> Seq.map(fun x -> ())
-        // let newChunk = grouping.Key
 
-        // let stream = grouping.Key |> Storable.toStream
         let state =
-          TinyEventStore.PureStore.rehydrateEvents
-            existingState
-            evolve
-            (streamChunk.Events |> Seq.map Storable.toEvent)
+          PureStore.rehydrateEvents existingState evolve (streamChunk.Events |> Seq.map Storable.toEvent)
 
         let combinedChunk = streamChunk |> StreamChunk.Append existingChunk
-        // let combinedChunk = newChunk
         state, combinedChunk)
 
     return statesAndStreams
@@ -122,7 +110,7 @@ let efRehydrate2<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id
 
   taskResult {
     let! stream = loadEvents id
-    let state = TinyEventStore.PureStore.rehydrate zero evolve stream
+    let state = PureStore.rehydrate zero evolve stream
     return state, stream
   }
 
@@ -140,7 +128,7 @@ let rehydrateMany<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'i
 
     return
       streams
-      |> Seq.map (fun stream -> (TinyEventStore.PureStore.rehydrate zero evolve stream), stream)
+      |> Seq.map (fun stream -> (PureStore.rehydrate zero evolve stream), stream)
       |> Seq.toList
   }
 
@@ -195,7 +183,6 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
           CommandEnvelope<'id, 'command, 'commandHeader>
             -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>
          >
-    // projections: IProjection list
     appendEvents:
       IServiceProvider
         -> 'id
@@ -230,7 +217,6 @@ let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, '
   let events = events |> List.map Storable.toStorableEvent
   let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   // stream is loaded beforehand, so we can use its entry
-
   // let entry = db.Entry(stream)
   insertOrUpdate stream
   events |> List.iter (db.Add >> ignore)
@@ -300,7 +286,7 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     rehydrateLatest2 = rehydrateLatest2
     rehydrateMany = rehydrateMany
     rehydrateAll = rehydrateAll
-    rehydrate = TinyEventStore.PureStore.rehydrate zero evolve
+    rehydrate = PureStore.rehydrate zero evolve
     getDb = fun ctx -> ctx.GetService<'Db>()
     applyOperationResultToProjections = fun _ _ -> ()
     appendEvents = appendEvents

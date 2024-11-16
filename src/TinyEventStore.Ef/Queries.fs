@@ -5,7 +5,6 @@ open Microsoft.EntityFrameworkCore
 open TinyEventStore
 open TinyEventStore.Ef.Storables
 open System.Linq
-open FsToolkit.ErrorHandling
 
 let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
   task {
@@ -102,7 +101,7 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
       streams
       |> Seq.map (fun grouping ->
         let streamId = grouping.Key
-        let events = grouping |> Seq.toList // |> Seq.map Storable.toEvent |> Seq.toList
+        let events = grouping |> Seq.toList
 
         let stream =
           { StreamId = streamId

@@ -66,9 +66,7 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
   { StreamId: 'id
     FromSequenceId: uint32
     ToSequenceId: uint32
-    Events: StorableEvent<'id, 'event, 'header> list
-  // StreamChunk: StorableStream<'id, 'event, 'header>
-  }
+    Events: StorableEvent<'id, 'event, 'header> list }
 
   member this.IsZero() =
     this.FromSequenceId = 0u || this.ToSequenceId = 0u
@@ -86,9 +84,7 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
         { StreamId = chunk0.StreamId
           FromSequenceId = chunk1.FromSequenceId
           ToSequenceId = chunk0.ToSequenceId
-          Events = chunk0.Events @ chunk1.Events
-        // StreamChunk = chunk0.StreamChunk
-        }
+          Events = chunk0.Events @ chunk1.Events }
     else
       failwith
         $"Cannot append chunks. Source chunk version = {chunk0.FromSequenceId}, appending chunk version = {chunk1.ToSequenceId}"
@@ -99,9 +95,7 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
     { StreamId = Unchecked.defaultof<'id>
       FromSequenceId = 0u
       ToSequenceId = 0u
-      Events = events
-    // StreamChunk = Unchecked.defaultof<StorableStream<'id, 'event, 'header>>
-    }
+      Events = events }
 
 module Storable =
   open System.Linq
@@ -137,9 +131,8 @@ module Storable =
       StorableStream<'id, 'event, 'header>(
         Id = result.Id,
         Version = result.Version,
-        Created = result.Created, //,
+        Created = result.Created,
         Modified = result.Modified
-      // Children = result.Events |> List.map toStorableEvent |> List.toSeq
       )
 
     if not (stream.IsValid()) then
