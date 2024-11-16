@@ -1,66 +1,72 @@
 module TinyEventStore.Test.Chess.ProjectionReplay
 
-open System
-open System.Diagnostics
-open Chess
-open Microsoft.AspNetCore.Http
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open TinyEventStore.Test.Chess.Db
 open Xunit
 open Serilog
+open FsToolkit.ErrorHandling
+open Microsoft.AspNetCore.Http
+open Chess
 
-let services = ServiceCollection()
-let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
-let dbName = "test-tiny-event-store-chess"
+let bootstrapTestDatabase () =
+  let services = ServiceCollection()
+  // let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
+  let dbName = "test-tiny-event-store-chess"
 
-let path = System.IO.Path.GetFullPath(".env.local")
-let currentDir = System.IO.Directory.GetCurrentDirectory()
-dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
-let variables = System.Environment.GetEnvironmentVariables()
-let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
-let connectionString' = connectionString.Replace("{dbName}", dbName)
+  // let path = System.IO.Path.GetFullPath(".env.local")
+  // let currentDir = System.IO.Directory.GetCurrentDirectory()
+  dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
+  // let variables = System.Environment.GetEnvironmentVariables()
+  let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
 
-services.AddDbContext<ChessDb>(fun x -> x.UseNpgsql(connectionString.Replace("{dbName}", dbName)) |> ignore)
-|> ignore
+  services.AddDbContext<ChessDb>(fun x -> x.UseNpgsql(connectionString.Replace("{dbName}", dbName)) |> ignore)
+  |> ignore
 
-//configure Serilog logger that writes to a file
-Serilog.Log.Logger <-
-  Serilog
-    .LoggerConfiguration()
-    .WriteTo.File("logs/log-.log", rollingInterval = RollingInterval.Day)
-    .CreateLogger()
+  Log.Logger <-
+    Serilog
+      .LoggerConfiguration()
+      .WriteTo.File("logs/log-.log", rollingInterval = RollingInterval.Day)
+      .CreateLogger()
 
-services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Serilog.Log.Logger) |> ignore)
-|> ignore
+  services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Serilog.Log.Logger) |> ignore)
+  |> ignore
 
-let serviceProvider = services.BuildServiceProvider()
+  let serviceProvider = services.BuildServiceProvider()
 
-serviceProvider.GetService<ChessDb>().Database.EnsureDeleted() |> ignore
+  serviceProvider.GetService<ChessDb>().Database.EnsureDeleted() |> ignore
 
-serviceProvider.GetService<ChessDb>().Database.EnsureCreated() |> ignore
+  serviceProvider.GetService<ChessDb>().Database.EnsureCreated() |> ignore
+
+  fun () ->
+    let scope0 = serviceProvider.CreateScope()
+    DefaultHttpContext(RequestServices = scope0.ServiceProvider)
+
+let createHttpContext = bootstrapTestDatabase ()
 
 [<Fact>]
 let ``Projection replay`` () =
   taskResult {
+    // Arrange
     let httpContext = createHttpContext ()
     let id = GameId.FromRaw 1
 
     let! _ = (id, [ GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
-
-    let store = Handler.store.getDb httpContext.RequestServices
-    let! item = store.ChessGames.FirstAsync()
+    let store = Handler.store
+    let db = store.getDb httpContext.RequestServices
+    let! item = db.ChessGames.FirstAsync()
     TinyEventStore.Check.expect <@ item.Id = id @>
-    let db = store.GetDb(httpContext.RequestServices)
-    db.Remove(item) |> ignore
+    let db = store.getDb httpContext.RequestServices
+    db.Remove item |> ignore
     let! _ = db.SaveChangesAsync()
+
+    let! item = db.ChessGames.FirstOrDefaultAsync()
+    TinyEventStore.Check.expect <@ box item = null @>
+
+    // Act
+    store.replay
+
     // TODO delete list item, then replay projection
-
-    let! item = store.ChessGames.FirstOrAsync()
-    TinyEventStore.Check.expect <@ item = null @>
-
-    //
-
     let httpContext = createHttpContext ()
     Handler.replay httpContext
     let! _ = Handler.handleGameCommand httpContext (id, Command.Delete)
@@ -68,6 +74,7 @@ let ``Projection replay`` () =
     let! item = store.ChessGames.FirstOrDefaultAsync()
     Assert.Null item
     // TinyEventStore.Check.expect <@ box item = null @>
+    // Assert
     return ()
   }
   |> TaskResult.mapError (fun x ->
