@@ -27,12 +27,12 @@ let decide =
     | Ok resultValue ->
       let eventEnvelopes = resultValue |> List.map (fun e -> e, EventHeader())
       Ok(eventEnvelopes, [])
-    | Error errorValue -> Result.Error errorValue)
+    | Error errorValue -> Error errorValue)
 
 let aggregate: Aggregate<Id, State, Event, EventHeader> =
   { zero = Chess.Game.Zero
     evolve = (fun state e -> Chess.evolve state e.Payload)
-    shouldDelete = fun x y -> x.EventsChunk |> List.exists (fun e -> e.Payload = Event.Deleted) }
+    shouldDelete = fun x _ -> x.EventsChunk |> List.exists (fun e -> e.Payload = Event.Deleted) }
 
 let listProjection =
   new EfProjection<Id, State, Event, EventHeader, ChessGameListItem, Db>(fun op ->
@@ -40,49 +40,25 @@ let listProjection =
       IsFinished = false })
 
 let store =
-  Configuration.Configure<Id, State, Event, EventHeader, Command, CommandHeader, TinyEventStore.Test.Chess.Db.ChessDb>(
+  Configuration.Configure<Id, State, Event, EventHeader, Command, CommandHeader, ChessDb>(
     aggregate,
     decide,
-    // []
     [ listProjection ]
   )
 
 let replay (ctx: HttpContext) (projection: EfProjection<Id, State, Event, EventHeader, ChessGameListItem, Db>) =
   taskResult { do! store.replayProjection ctx.RequestServices projection }
-// let store =
-//   TinyEventStore.EfEs.efCreate<
-//     Id,
-//     State,
-//     Event,
-//     EventHeader,
-//     Command,
-//     CommandHeader,
-//     SideEffect,
-//     TinyEventStore.Test.Chess.Db.ChessDb
-//    >
-//     Chess.Game.Zero
-//     (fun state e -> Chess.evolve state e.Payload)
-//     decide
 
 let appendEvents (ctx: HttpContext) (streamId: Id, events: Event list) =
   taskResult {
-    let events = events |> List.mapi (fun i e -> e, Dictionary())
+    let events = events |> List.mapi (fun _ e -> e, Dictionary())
     let! _ = store.applyEvents ctx.RequestServices (streamId, events)
     do! store.saveChangesAsync ctx.RequestServices
-  // let! result = store.appendEvents ctx.RequestServices streamId events
-  // store.updateEventStore2 ctx.RequestServices result
-  // store.applyOperationResultToProjections ctx.RequestServices result
-  // let db = store.getDb ctx.RequestServices
-  //
-  // let! dbResult = db.SaveChangesAsync()
-  //
-  // if dbResult = 0 then
-  //   failwith "no changes applied to database"
   }
 
 let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
   taskResult {
-    let logger = ctx.RequestServices.GetService<ILogger<string>>()
+    let _ = ctx.RequestServices.GetService<ILogger<string>>()
 
     let commandEnvelope: CommandEnvelope =
       CommandEnvelope.New(streamId, command, CommandHeader())
