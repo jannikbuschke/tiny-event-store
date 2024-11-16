@@ -19,7 +19,7 @@ let projectToDbCommand (events: EventEnvelope<'id, 'event, 'header> list) =
   else
     DbSideEffect.Update
 
-let mapToDbOperation (db: DbContext) =
+let mapToEfContextOperation (db: DbContext) =
   function
   | DbSideEffect.Create -> db.Add >> ignore
   | DbSideEffect.Update -> db.Update >> ignore

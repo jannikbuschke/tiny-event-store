@@ -183,7 +183,7 @@ type EfProjection<'id, 'state, 'event, 'header, 'a, 'Db when 'Db :> DbContext an
     member _.Apply (ctx) (op) =
       let db = ctx.GetRequiredService<'Db>()
       let dbOp0 = op |> getDefaultDbOperation
-      let dbOp = dbOp0 |> mapToDbOperation db
+      let dbOp = dbOp0 |> mapToEfContextOperation db
       let a = op |> f
       a |> dbOp
 
@@ -228,7 +228,7 @@ let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, '
   let stream = Storable.toStorableStream stream
   let dbCmd = projectToDbCommand events
   let events = events |> List.map Storable.toStorableEvent
-  let insertOrUpdate x = mapToDbOperation db dbCmd x
+  let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   // stream is loaded beforehand, so we can use its entry
 
   // let entry = db.Entry(stream)
@@ -245,7 +245,7 @@ let updateDerivedWithDbOperation
   let entry = db.Entry(derived)
   // this is not explicit, should be refactored mayb
   entry.CurrentValues.Item "Id" <- commandResult.NewStream.Id
-  let insertOrUpdate x = mapToDbOperation db dbCmd x
+  let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   insertOrUpdate derived
   ()
 
@@ -259,7 +259,7 @@ let updateDerived
   // this is not explicit, should be refactored mayb
   entry.CurrentValues.Item "Id" <- commandResult.NewStream.Id
   let dbCmd = projectToDbCommand commandResult.NewEvents
-  let insertOrUpdate x = mapToDbOperation db dbCmd x
+  let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   insertOrUpdate derived
   ()
 
