@@ -1,12 +1,10 @@
 module TinyEventStore.Ef.Store
 
 open System
-open System.Threading.Tasks
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open TinyEventStore
 open FsToolkit.ErrorHandling
-open TinyEventStore.Ef.Storables
 open Queries
 open Core
 open TinyEventStore.Ef.Projections
@@ -26,7 +24,6 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> 'id
         -> ('event * 'header) list
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
-    // rerunProject: IServiceProvider -> Task<('state * Stream<'id, 'event, 'header>) list>
     replayProjection: IServiceProvider -> IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: IServiceProvider -> 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
@@ -46,52 +43,6 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     aggregate: Aggregate<'id, 'state, 'event, 'header>
     saveChangesAsync: IServiceProvider -> TaskResult<unit, string> }
 
-
-let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect, 'Db
-  when 'Db :> DbContext and 'id: equality>
-  (zero: 'state)
-  (evolve: Evolve<'id, 'state, 'event, 'header>)
-  (decide: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
-  : EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db> =
-
-  let aggregate =
-    { zero = zero
-      evolve = evolve
-      shouldDelete = fun _ _ -> false }
-
-  let prepare =
-    prepare<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db> aggregate decide
-
-  let rehydrateLatest2 = efRehydrate2<'id, 'state, 'event, 'header, 'Db> zero evolve
-  let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
-  let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
-  let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
-  // let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
-
-  let updateEventStore2 (ctx: IServiceProvider) operationResult =
-    let db = ctx.GetService<'Db>()
-    updateEventStream2 db operationResult
-
-
-  { prepare = prepare
-    aggregate =
-      { zero = zero
-        evolve = evolve
-        shouldDelete = fun _ _ -> false }
-    rehydrateLatest2 = rehydrateLatest2
-    rehydrateMany = rehydrateMany
-    rehydrateAll = rehydrateAll
-    rehydrate = PureStore.rehydrate zero evolve
-    getDb = fun ctx -> ctx.GetService<'Db>()
-    applyOperationResultToProjections = fun _ _ -> ()
-    appendEvents = appendEvents
-    updateEventStore2 = updateEventStore2
-    // rerunProject = rerunProjection
-    replayProjection = fun _ _ -> failwith "Not implemented"
-    applyCommand = fun _ _ -> failwith "Not Implemented1"
-    applyEvents = fun _ _ -> failwith "Not Implemented2"
-    saveChangesAsync = fun _ -> failwith "Not Implemented3" }
-
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
     when 'Db :> DbContext and 'id: equality>
@@ -110,7 +61,6 @@ type Configuration() =
     let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
     let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
-    // let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
     let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate // ctx // projection.Apply
 
     let applyResultToProjections serviceProvider result =
@@ -149,7 +99,6 @@ type Configuration() =
       applyCommand = applyCommand
       applyEvents = applyEvents
       updateEventStore2 = updateEventStore2
-      // rerunProject = rerunProjection
       replayProjection =
         fun ctx projection ->
           taskResult {

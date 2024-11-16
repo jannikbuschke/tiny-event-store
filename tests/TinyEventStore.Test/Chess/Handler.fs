@@ -68,16 +68,32 @@ let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
     return ()
   }
 
-let settingsStore =
-  efCreate<Id, Db.ChessSettings, SettingsEvent, EventHeader, SettingsCommand, CommandHeader, SideEffect, ChessDb>
-    SettingsLogic.zero
-    (fun state e -> SettingsLogic.evolve state e.Payload)
-    (fun state command ->
-      let events =
-        SettingsLogic.handle state command.Payload
-        |> List.map (fun e -> e, EventHeader())
+let settingsAggregate =
+  { Aggregate.zero = SettingsLogic.zero
+    evolve = (fun state e -> SettingsLogic.evolve state e.Payload)
+    shouldDelete = failwith "Not Implemented" }
 
-      Ok(events, []))
+let settingsDecide =
+  (fun state command ->
+    let events =
+      SettingsLogic.handle state command.Payload
+      |> List.map (fun e -> e, EventHeader())
+
+    Ok(events, []))
+
+let settingsStore =
+  Configuration.Configure<Id, Db.ChessSettings, SettingsEvent, EventHeader, SettingsCommand, CommandHeader, ChessDb>(
+    settingsAggregate,
+    settingsDecide,
+    []
+  )
+// efCreate<>
+//   (fun state command ->
+//     let events =
+//       SettingsLogic.handle state command.Payload
+//       |> List.map (fun e -> e, EventHeader())
+//
+//     Ok(events, []))
 
 let handleSettingsCommand (ctx: HttpContext) (streamId: Id, command: SettingsCommand) =
   taskResult {
