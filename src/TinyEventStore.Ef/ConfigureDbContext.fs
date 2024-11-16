@@ -1,10 +1,10 @@
-﻿module TinyEventStore.Ef.DbContext
+module TinyEventStore.Ef.DbContext
 
 open System.Runtime.CompilerServices
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
 open FsToolkit.ErrorHandling
-open TinyEventStore.EfUtils
+open EfUtils
 open Json
 open TinyEventStore.Ef.Storables
 
@@ -38,17 +38,11 @@ let configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header
     .HasConversion(serialize<CausationId option>, deserialize<CausationId option>)
   |> ignore
 
-  let toRaw =
-    Option.map CorrelationId.ToRawValue
-    >> Option.toNullable
+  let toRaw = Option.map CorrelationId.ToRawValue >> Option.toNullable
 
-  let fromRaw =
-    Option.ofNullable
-    >> Option.map CorrelationId.FromRawValue
+  let fromRaw = Option.ofNullable >> Option.map CorrelationId.FromRawValue
 
-  entity
-    .Property(fun x -> x.CorrelationId)
-    .HasConversion(toRaw, fromRaw)
+  entity.Property(fun x -> x.CorrelationId).HasConversion(toRaw, fromRaw)
   |> ignore
 
   entity
@@ -60,9 +54,7 @@ let configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header
     e |> (payloadConverter |> fst) |> serialize
 
   let deserializeEvent (dto: string) =
-    dto
-    |> deserialize<'eventDto>
-    |> (payloadConverter |> snd)
+    dto |> deserialize<'eventDto> |> (payloadConverter |> snd)
 
   entity
     .Property(fun x -> x.Payload)
@@ -73,9 +65,7 @@ let configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header
     e |> (headerConverter |> fst) |> serialize
 
   let deserializeHeader (dto: string) =
-    dto
-    |> deserialize<'headerDto>
-    |> (headerConverter |> snd)
+    dto |> deserialize<'headerDto> |> (headerConverter |> snd)
 
   entity
     .Property(fun x -> x.Header)
@@ -89,8 +79,12 @@ let configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header
 
   entity
 
-let configureEventEnvelope<'id, 'rawId, 'event, 'header> (modelBuilder: ModelBuilder) (tableName: string) (idConverter: IdConverter<'id, 'rawId>) =
-  modelBuilder.Entity<EventEnvelope<'id, 'event, 'header>> (fun entity ->
+let configureEventEnvelope<'id, 'rawId, 'event, 'header>
+  (modelBuilder: ModelBuilder)
+  (tableName: string)
+  (idConverter: IdConverter<'id, 'rawId>)
+  =
+  modelBuilder.Entity<EventEnvelope<'id, 'event, 'header>>(fun entity ->
     entity.HasKey(fun x -> x.EventId :> obj) |> ignore
 
     entity.ToTable tableName |> ignore
@@ -106,17 +100,11 @@ let configureEventEnvelope<'id, 'rawId, 'event, 'header> (modelBuilder: ModelBui
       .HasConversion(serialize<CausationId option>, deserialize<CausationId option>)
     |> ignore
 
-    let toRaw =
-      Option.map CorrelationId.ToRawValue
-      >> Option.toNullable
+    let toRaw = Option.map CorrelationId.ToRawValue >> Option.toNullable
 
-    let fromRaw =
-      Option.ofNullable
-      >> Option.map CorrelationId.FromRawValue
+    let fromRaw = Option.ofNullable >> Option.map CorrelationId.FromRawValue
 
-    entity
-      .Property(fun x -> x.CorrelationId)
-      .HasConversion(toRaw, fromRaw)
+    entity.Property(fun x -> x.CorrelationId).HasConversion(toRaw, fromRaw)
     |> ignore
 
     entity
@@ -142,15 +130,17 @@ let configureEventEnvelope<'id, 'rawId, 'event, 'header> (modelBuilder: ModelBui
     ())
   |> ignore
 
-let configureStream<'id, 'rawId, 'event, 'header> (modelBuilder: ModelBuilder) (converter: IdConverter<'id, 'rawId>) (tableName: string) =
+let configureStream<'id, 'rawId, 'event, 'header>
+  (modelBuilder: ModelBuilder)
+  (converter: IdConverter<'id, 'rawId>)
+  (tableName: string)
+  =
   let entity = modelBuilder.Entity<Stream<'id, 'event, 'header>>()
   entity.HasKey(fun x -> x.Id :> obj) |> ignore
 
   entity.ToTable tableName |> ignore
 
-  entity
-    .Property(fun x -> x.Id)
-    .HasConversion(converter |> fst, converter |> snd)
+  entity.Property(fun x -> x.Id).HasConversion(converter |> fst, converter |> snd)
   |> ignore
 
   entity
@@ -166,7 +156,12 @@ let configureEventStore<'id, 'rawId, 'event, 'header>
     configureStream<'id, 'rawId, 'event, 'header> modelBuilder converter streamTableName
 
   let eventBuilder =
-    configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'event, 'header, 'header> modelBuilder eventTableName converter (id, id) (id, id)
+    configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'event, 'header, 'header>
+      modelBuilder
+      eventTableName
+      converter
+      (id, id)
+      (id, id)
 
   streamBuilder, eventBuilder
 
@@ -181,7 +176,12 @@ let configureEventStoreWithConversions<'id, 'rawId, 'event, 'eventDto, 'header, 
   configureStream<'id, 'rawId, 'event, 'header> modelBuilder converter streamTableName
   |> ignore
 
-  configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto> modelBuilder eventTableName converter eventConverter headerConverter
+  configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
+    modelBuilder
+    eventTableName
+    converter
+    eventConverter
+    headerConverter
 
 type ConfigureStream<'id, 'idRaw, 'tDiscriminator when 'id: equality>
   (
@@ -205,9 +205,7 @@ type ConfigureStream<'id, 'idRaw, 'tDiscriminator when 'id: equality>
       .HasColumnName("StreamId")
     |> ignore
 
-    eventEntity
-      .HasIndex(fun x -> (x.Version, x.StreamId) :> obj)
-      .IsUnique()
+    eventEntity.HasIndex(fun x -> (x.Version, x.StreamId) :> obj).IsUnique()
     |> ignore
 
     let dataProp =
@@ -219,12 +217,9 @@ type ConfigureStream<'id, 'idRaw, 'tDiscriminator when 'id: equality>
         .HasConversion(Json.serialize, Json.deserialize)
 
     let headerProp =
-      ty
-        .Entity<StorableEvent<'id, 'event, 'header>>()
-        .Property(fun x -> x.Header)
+      ty.Entity<StorableEvent<'id, 'event, 'header>>().Property(fun x -> x.Header)
 
-    headerProp.HasConversion(Json.serialize, Json.deserialize)
-    |> ignore
+    headerProp.HasConversion(Json.serialize, Json.deserialize) |> ignore
 
     headerProp.HasColumnName("Header") |> ignore
 
@@ -243,17 +238,19 @@ type ModelBuilderExtensions() =
 
   [<Extension>]
   static member HasTinyEventStoreJsonConversion<'a>(property: Metadata.Builders.PropertyBuilder<'a>) =
-    property.HasConversion(Json.serialize, Json.deserialize)
-    |> ignore
+    property.HasConversion(Json.serialize, Json.deserialize) |> ignore
 
   [<Extension>]
-  static member HasTinyEventStoreIdConversion<'id, 'idRaw>(property: Metadata.Builders.PropertyBuilder<'id>, idConverter: IdConverter<'id, 'idRaw>) =
-    property.HasConversion(idConverter |> fst, idConverter |> snd)
-    |> ignore
+  static member HasTinyEventStoreIdConversion<'id, 'idRaw>
+    (property: Metadata.Builders.PropertyBuilder<'id>, idConverter: IdConverter<'id, 'idRaw>)
+    =
+    property.HasConversion(idConverter |> fst, idConverter |> snd) |> ignore
 
   [<Extension>]
-  static member AddMultiEventStore2<'id, 'idRaw, 'tDiscriminator when 'id: equality>(ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, name, fn) =
-    ty.Entity<AbstractStorableStream<'id>> (fun entity ->
+  static member AddMultiEventStore2<'id, 'idRaw, 'tDiscriminator when 'id: equality>
+    (ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, name, fn)
+    =
+    ty.Entity<AbstractStorableStream<'id>>(fun entity ->
       entity.HasKey(fun x -> x.Id :> obj) |> ignore
 
       entity.ToTable(name + "_streams") |> ignore
@@ -264,9 +261,8 @@ type ModelBuilderExtensions() =
       |> ignore)
     |> ignore
 
-    ty.Entity<AbstractStorableEvent<'id>> (fun entity ->
-      entity.HasKey(fun x -> x.SequenceId :> obj)
-      |> ignore
+    ty.Entity<AbstractStorableEvent<'id>>(fun entity ->
+      entity.HasKey(fun x -> x.SequenceId :> obj) |> ignore
 
       entity
         .Property(fun x -> x.EventId)
@@ -277,24 +273,16 @@ type ModelBuilderExtensions() =
       entity.ToTable(name + "_events") |> ignore
       entity.OwnsOne(fun x -> x.CausationId) |> ignore
 
-      let toRaw =
-        Option.map CorrelationId.ToRawValue
-        >> Option.toNullable
+      let toRaw = Option.map CorrelationId.ToRawValue >> Option.toNullable
 
-      let fromRaw =
-        Option.ofNullable
-        >> Option.map CorrelationId.FromRawValue
+      let fromRaw = Option.ofNullable >> Option.map CorrelationId.FromRawValue
 
-      entity
-        .Property(fun x -> x.CorrelationId)
-        .HasConversion(toRaw, fromRaw)
+      entity.Property(fun x -> x.CorrelationId).HasConversion(toRaw, fromRaw)
       |> ignore
 
-      entity.Ignore(fun x -> x.CausationId :> obj)
-      |> ignore
+      entity.Ignore(fun x -> x.CausationId :> obj) |> ignore
 
-      entity.Ignore(fun x -> x.CorrelationId :> obj)
-      |> ignore
+      entity.Ignore(fun x -> x.CorrelationId :> obj) |> ignore
 
       ())
     |> ignore

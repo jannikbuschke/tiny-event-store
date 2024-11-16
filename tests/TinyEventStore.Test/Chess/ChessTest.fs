@@ -48,29 +48,31 @@ let ``do some and save changes`` () =
 
     let settingsId = GameId.FromRaw 2
 
-    let! result1 =
-      TinyEventStore.Test.Chess.Handler.handleSettingsCommand httpContext (settingsId, SettingsCommand.Create { DefaultGameTime = TimeSpan.FromMinutes 5 })
+    let! _ =
+      Handler.handleSettingsCommand
+        httpContext
+        (settingsId, SettingsCommand.Create { DefaultGameTime = TimeSpan.FromMinutes 5 })
 
     let id = GameId.FromRaw 1
 
-    let! result1 = TinyEventStore.Test.Chess.Handler.handleGameCommand httpContext (id, Chess.Command.CreateGame)
+    let! _ = Handler.handleGameCommand httpContext (id, Command.CreateGame)
 
     use scope1 = serviceProvider.CreateScope()
     let httpContext = DefaultHttpContext(RequestServices = scope1.ServiceProvider)
     do! System.Threading.Tasks.Task.Delay(10)
 
-    let! result2 =
-      TinyEventStore.Test.Chess.Handler.handleGameCommand
+    let! _ =
+      Handler.handleGameCommand
         httpContext
         (id,
-         Chess.Command.MovePiece
+         Command.MovePiece
            { From = Square.FromRaw "e2"
              To = Square.FromRaw "e4"
-             ChessPiece = (Piece.Bishop, Color.White) })
+             ChessPiece = (Bishop, White) })
 
     use scope1 = serviceProvider.CreateScope()
 
-    let! state = TinyEventStore.Test.Chess.Handler.store.rehydrateLatest2 scope1.ServiceProvider id
+    let! _ = TinyEventStore.Test.Chess.Handler.store.rehydrateLatest2 scope1.ServiceProvider id
 
     return ()
   }
@@ -100,10 +102,12 @@ let ``Many events on one stream`` () =
 
         return ()
       }
+
     let overallTime = new Stopwatch()
     overallTime.Start()
 
     let durations = ResizeArray()
+
     for i in 1..1000 do
       let stopWatch = new Stopwatch()
       stopWatch.Reset()

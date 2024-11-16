@@ -39,7 +39,6 @@ type ChessEventEnvelope = EventEnvelope<Id, GameEvent, ChessEventHeader>
 [<CLIMutable>]
 type ChessGameListItem = { Id: Id; IsFinished: bool }
 
-
 type ChessDb =
   inherit DbContext
   new(options: DbContextOptions<ChessDb>) = { inherit DbContext(options) }

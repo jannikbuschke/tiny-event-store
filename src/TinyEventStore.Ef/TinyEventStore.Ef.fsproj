@@ -22,10 +22,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Json.fs" />
         <Compile Include="Core.fs" />
+        <Compile Include="Json.fs" />
         <Compile Include="Storables.fs" />
         <Compile Include="ConfigureDbContext.fs" />
+        <Compile Include="Queries.fs" />
+        <Compile Include="Ef.fs" />
+        <Compile Include="Projections.fs" />
     </ItemGroup>
 
     <ItemGroup>
@@ -42,11 +45,6 @@
 <!--            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>-->
 <!--        </PackageReference>-->
 <!--    </ItemGroup>-->
-
-    <ItemGroup>
-        <Compile Include="Ef.fs" />
-        <Compile Include="Projections.fs" />
-    </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\TinyEventStore\TinyEventStore.fsproj"/>

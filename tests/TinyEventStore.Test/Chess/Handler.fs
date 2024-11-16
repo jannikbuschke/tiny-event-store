@@ -54,6 +54,8 @@ let store =
     [ listProjection ]
   )
 
+let replay (ctx: HttpContext) (projection: EfProjection<Id, State, Event, EventHeader, ChessGameListItem, Db>) =
+  taskResult { do! store.replayProjection ctx.RequestServices projection }
 // let store =
 //   TinyEventStore.EfEs.efCreate<
 //     Id,
@@ -88,25 +90,12 @@ let appendEvents (ctx: HttpContext) (streamId: Id, events: Event list) =
 let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
   taskResult {
     let logger = ctx.RequestServices.GetService<ILogger<string>>()
-    // let db = ctx.RequestServices.GetService<InvoicingDb>()
+
     let commandEnvelope: CommandEnvelope =
       CommandEnvelope.New(streamId, command, CommandHeader())
 
     let! _ = store.applyCommand ctx.RequestServices (streamId, commandEnvelope)
     do! store.saveChangesAsync ctx.RequestServices
-    // let! runCommand = store.prepare ctx.RequestServices streamId
-    // let! commandResult = runCommand commandEnvelope
-    // store.updateEventStore2 ctx.RequestServices commandResult
-    // store.applyOperationResultToProjections ctx.RequestServices commandResult
-    // let db = store.getDb ctx.RequestServices
-    // let allEntries = db.ChangeTracker.Entries() |> Seq.toList
-    //
-    // db.ChangeTracker.Entries()
-    // |> Seq.iter (fun x -> (logger.LogInformation(sprintf "Entry %A" x)))
-    //
-    // let! result2 = db.SaveChangesAsync()
-    // printfn "Result %A" result2
-    // printfn "----"
     return ()
   }
 

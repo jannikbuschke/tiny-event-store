@@ -7,125 +7,12 @@ open Microsoft.Extensions.DependencyInjection
 open TinyEventStore
 open FsToolkit.ErrorHandling
 open TinyEventStore.Ef.Storables
-open System.Linq
+open Queries
+open EfUtils
+// Todo
+// do a little more cleanup
+// and implement projection replay (189)
 
-let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
-  task {
-    // try
-    let! stream =
-      db
-        .Set<StorableStream<'id, 'event, 'header>>()
-        // ORDER children by
-        .Include(fun x -> x.Children)
-        .AsNoTracking()
-        .SingleOrDefaultAsync(fun x -> x.Id = id)
-
-    let stream: Stream<'id, 'event, 'header> =
-      if box stream = null then
-        let stream =
-          { Stream.Id = id
-            Version = 0u
-            // Created = DateTimeOffset.UtcNow
-            Created = DateTimeOffset.MinValue
-            Modified = DateTimeOffset.MinValue
-            Events = ResizeArray([]) }
-
-        stream
-      else
-        // stream
-        let coreStream = Storable.toStream stream
-        coreStream
-
-    return Result.Ok(stream)
-  }
-
-let loadMultipleStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id list) =
-  task {
-    try
-      let ids = ResizeArray(id)
-
-      let! streams =
-        db
-          .Set<StorableStream<'id, 'event, 'header>>()
-          // ORDER children by
-          .Include(fun x -> x.Children)
-          .AsNoTracking()
-          .Where(fun x -> ids.Contains(x.Id))
-          .ToListAsync()
-
-      return Ok(streams |> Seq.map Storable.toStream)
-    with e ->
-      printfn "error %s %A" e.Message (db.GetType())
-
-      db.Model.GetEntityTypes() |> Seq.iter (fun x -> printfn "entity %s" x.Name)
-
-      return Error e.Message
-  }
-
-let loadAllStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) =
-  task {
-    try
-      let! streams =
-        db
-          .Set<StorableStream<'id, 'event, 'header>>()
-          // ORDER children by
-          .Include(fun x -> x.Children)
-          .AsNoTracking()
-          .ToListAsync()
-
-      return Ok(streams |> Seq.map Storable.toStream)
-    with e ->
-      printfn "error %s %A" e.Message (db.GetType())
-
-      db.Model.GetEntityTypes() |> Seq.iter (fun x -> printfn "entity %s" x.Name)
-
-      return Error e.Message
-  }
-
-let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
-  (db: DbContext)
-  (from: uint32)
-  (untilIncluding: uint32)
-  =
-  task {
-    let! events =
-      db
-        .Set<StorableEvent<'id, 'event, 'header>>()
-        .Include(fun x -> x.Stream)
-        .Where(fun x -> x.Version >= from && x.Version <= untilIncluding)
-        .OrderBy(fun v -> v.Version)
-        .AsNoTracking()
-        .ToListAsync()
-
-    let streams = events.GroupBy(fun x -> x.StreamId)
-
-    let streams2 =
-      streams
-      |> Seq.map (fun grouping ->
-        let streamId = grouping.Key
-        let events = grouping |> Seq.toList // |> Seq.map Storable.toEvent |> Seq.toList
-
-        let stream =
-          { StreamId = streamId
-            Events = events
-            FromSequenceId = events.Head.SequenceId
-            ToSequenceId = events.Last().SequenceId }
-
-        if not (stream.ToSequenceId > stream.FromSequenceId) then
-          failwith ("to sequence id <= From Sequence id")
-
-        stream)
-
-    // let streams = events.GroupBy(fun x ->
-    //   {
-    //     StreamChunk.FromSequenceId = 0u
-    //     ToSequenceId = 0u
-    //     StreamId = x.StreamId
-    //     StreamChunk = x.Stream
-    //     }
-    //   )
-    return streams2
-  }
 
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
@@ -191,7 +78,7 @@ let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :>
   let db = services.GetService<'db>()
 
   let memory =
-    System.Collections.Generic.Dictionary<'id, 'state * StreamChunk<'id, 'event, 'header>>()
+    Collections.Generic.Dictionary<'id, 'state * StreamChunk<'id, 'event, 'header>>()
 
   task {
     let mutable running = true
@@ -269,7 +156,7 @@ let rehydrateAll<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id
 
     return
       streams
-      |> Seq.map (fun stream -> (TinyEventStore.PureStore.rehydrate zero evolve stream), stream)
+      |> Seq.map (fun stream -> (PureStore.rehydrate zero evolve stream), stream)
       |> Seq.toList
   }
 
@@ -284,16 +171,29 @@ let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when '
   fun (id: 'id) ->
     id
     |> loadEvents
-    |> TaskResult.map (fun x -> TinyEventStore.PureStore.makeCommandHandler aggregate executeCommand x)
+    |> Task.map (fun x -> PureStore.makeCommandHandler aggregate executeCommand x)
+
+
+type IEfProjection<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext> =
+  abstract member Apply: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
+
+type EfProjection<'id, 'state, 'event, 'header, 'a, 'Db when 'Db :> DbContext and 'a: not struct>
+  (f: OperationResult<'id, 'state, 'event, 'header> -> 'a) =
+  interface IEfProjection<'id, 'state, 'event, 'header, 'Db> with
+    member _.Apply (ctx) (op) =
+      let db = ctx.GetRequiredService<'Db>()
+      let dbOp0 = op |> getDefaultDbOperation
+      let dbOp = dbOp0 |> mapToDbOperation db
+      let a = op |> f
+      a |> dbOp
 
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext> =
   { prepare:
       IServiceProvider
         -> 'id
-        -> TaskResult<
+        -> Task<
           CommandEnvelope<'id, 'command, 'commandHeader>
-            -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>,
-          string
+            -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>
          >
     // projections: IProjection list
     appendEvents:
@@ -302,6 +202,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> ('event * 'header) list
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     rerunProject: IServiceProvider -> Task<('state * Stream<'id, 'event, 'header>) list>
+    replayProjection: IServiceProvider -> IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: IServiceProvider -> 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     rehydrateAll: IServiceProvider -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
@@ -323,37 +224,6 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
 
   }
 
-
-[<RequireQualifiedAccess>]
-type DbSideEffect =
-  | Create
-  | Update
-  | Delete
-  | DoNothing
-
-let projectToDbCommand (events: EventEnvelope<'id, 'event, 'header> list) =
-  if (events.Item 0).Version = 1u then
-    DbSideEffect.Create
-  else
-    DbSideEffect.Update
-
-let mapToDbOperation (db: DbContext) =
-  function
-  | DbSideEffect.Create -> db.Add >> ignore
-  | DbSideEffect.Update -> db.Update >> ignore
-  | DbSideEffect.Delete -> db.Remove >> ignore
-  | DbSideEffect.DoNothing -> fun _ -> ()
-
-let getDefaultDbOperation (operationResult: OperationResult<_, _, _, _>) =
-  let isNew = operationResult.New.IsNew()
-  let shouldDelete = operationResult.ShouldDelete
-
-  match isNew, shouldDelete with
-  | true, true -> DbSideEffect.DoNothing
-  | true, false -> DbSideEffect.Create
-  | false, true -> DbSideEffect.Delete
-  | false, false -> DbSideEffect.Update
-
 let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, 'header>) events =
   let stream = Storable.toStorableStream stream
   let dbCmd = projectToDbCommand events
@@ -361,7 +231,7 @@ let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, '
   let insertOrUpdate x = mapToDbOperation db dbCmd x
   // stream is loaded beforehand, so we can use its entry
 
-  let entry = db.Entry(stream)
+  // let entry = db.Entry(stream)
   insertOrUpdate stream
   events |> List.iter (db.Add >> ignore)
   ()
@@ -421,21 +291,6 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     let db = ctx.GetService<'Db>()
     updateEventStream2 db operationResult
 
-  // let applyEvents (ctx: IServiceProvider) (streamId, events) =
-  //   taskResult {
-  //     let! result = appendEvents ctx streamId events
-  //     updateEventStore2 ctx result
-  //     // applyOperationResultToProjections ctx.RequestServices result
-  //     return result
-  //   }
-  //
-  // let applyCommand serviceProvider (id, command) =
-  //   taskResult {
-  //     let! run = prepare serviceProvider id
-  //     let! result = run command
-  //     updateEventStore2 serviceProvider result
-  //     return result
-  //   }
 
   { prepare = prepare
     aggregate =
@@ -450,26 +305,13 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     applyOperationResultToProjections = fun _ _ -> ()
     appendEvents = appendEvents
     updateEventStore2 = updateEventStore2
-    // fun ctx operationResult ->
-    //   let db = ctx.GetService<'Db>()
-    //   updateEventStream2 db operationResult
     rerunProject = rerunProjection
+    replayProjection = fun _ _ -> failwith "Not implemented"
     applyCommand = fun _ _ -> failwith "Not Implemented1"
     applyEvents = fun _ _ -> failwith "Not Implemented2"
     saveChangesAsync = fun _ -> failwith "Not Implemented3" }
 
-type IEfProjection<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext> =
-  abstract member Apply: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
 
-type EfProjection<'id, 'state, 'event, 'header, 'a, 'Db when 'Db :> DbContext and 'a: not struct>
-  (f: OperationResult<'id, 'state, 'event, 'header> -> 'a) =
-  interface IEfProjection<'id, 'state, 'event, 'header, 'Db> with
-    member _.Apply (ctx) (op) =
-      let db = ctx.GetRequiredService<'Db>()
-      let dbOp0 = op |> getDefaultDbOperation
-      let dbOp = dbOp0 |> mapToDbOperation db
-      let a = op |> f
-      a |> dbOp
 
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
@@ -521,16 +363,14 @@ type Configuration() =
       rehydrateLatest2 = rehydrateLatest2
       rehydrateMany = rehydrateMany
       rehydrateAll = rehydrateAll
-      rehydrate = TinyEventStore.PureStore.rehydrate zero evolve
+      rehydrate = PureStore.rehydrate zero evolve
       getDb = fun ctx -> ctx.GetService<'Db>()
       appendEvents = appendEvents
       applyCommand = applyCommand
       applyEvents = applyEvents
       updateEventStore2 = updateEventStore2
-      // fun ctx operationResult ->
-      //   let db = ctx.GetService<'Db>()
-      //   updateEventStream2 db operationResult
       rerunProject = rerunProjection
+      replayProjection = fun _ _ -> failwith "Not implemented"
       saveChangesAsync =
         fun (ctx) ->
           taskResult {
