@@ -27,7 +27,7 @@
         <Compile Include="Storables.fs" />
         <Compile Include="ConfigureDbContext.fs" />
         <Compile Include="Queries.fs" />
-        <Compile Include="Ef.fs" />
+        <Compile Include="EfStore.fs" />
         <Compile Include="Projections.fs" />
     </ItemGroup>
 
