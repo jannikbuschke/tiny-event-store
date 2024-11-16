@@ -176,19 +176,3 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, '
 
       return result
     }
-
-// let create<'id, 'state, 'event, 'header, 'command, 'commandHeader,'sideEffect>
-//   (zero: 'state)
-//   (evolve: Evolve<'id, 'state, 'event, 'header>)
-//   (executeCommand: PureDecide<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect>)
-//   =
-//   let commandHandler =
-//     makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect> zero evolve executeCommand
-//
-//   let appendEventsHandler =
-//     appendEvents<'id, 'state, 'event, 'header, 'sideEffect> zero evolve
-//
-//   let rehydrate = rehydrate<'id, 'state, 'event, 'header> zero evolve
-//   let result = (commandHandler, appendEventsHandler, rehydrate)
-//   result
-//   result
