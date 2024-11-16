@@ -21,15 +21,15 @@ let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when '
     |> loadEvents
     |> TaskResult.map (PureStore.makeCommandHandler aggregate executeCommand)
 
+// creates an operation result
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (ctx: IServiceProvider)
   (id: 'id)
   (events: ('event * 'header) list)
   =
-  let db = ctx.GetRequiredService<'Db>()
-
   taskResult {
+    let db = ctx.GetRequiredService<'Db>()
     let! stream = loadStorableStream<'id, 'event, 'header> db id
 
     let result =

@@ -64,17 +64,16 @@ let ``Projection replay`` () =
     TinyEventStore.Check.expect <@ box item = null @>
 
     // Act
-    store.replay
-
-    // TODO delete list item, then replay projection
     let httpContext = createHttpContext ()
-    Handler.replay httpContext
-    let! _ = Handler.handleGameCommand httpContext (id, Command.Delete)
+    do! Handler.replay httpContext Handler.listProjection
 
-    let! item = store.ChessGames.FirstOrDefaultAsync()
-    Assert.Null item
+
     // TinyEventStore.Check.expect <@ box item = null @>
     // Assert
+    let httpContext = createHttpContext ()
+    let db = store.getDb httpContext.RequestServices
+    let! item = db.ChessGames.FirstAsync()
+    TinyEventStore.Check.expect <@ item.Id = id @>
     return ()
   }
   |> TaskResult.mapError (fun x ->

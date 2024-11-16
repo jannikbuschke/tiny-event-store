@@ -72,22 +72,26 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
     this.FromSequenceId = 0u || this.ToSequenceId = 0u
 
   member this.IsValid() = not (this.IsZero())
-
   // appends chunk1 to chunk0
   // chunk 0 ToSequence must be exactly 1 less than chunk1 FromSequence
-  static member Append (chunk0: StreamChunk<'id, 'event, 'header>) (chunk1: StreamChunk<'id, 'event, 'header>) =
-
-    if (chunk0.ToSequenceId + 1u = chunk1.FromSequenceId) then
-      if chunk0.IsZero() then
-        chunk1
-      else
-        { StreamId = chunk0.StreamId
-          FromSequenceId = chunk1.FromSequenceId
-          ToSequenceId = chunk0.ToSequenceId
-          Events = chunk0.Events @ chunk1.Events }
-    else
-      failwith
-        $"Cannot append chunks. Source chunk version = {chunk0.FromSequenceId}, appending chunk version = {chunk1.ToSequenceId}"
+  // static member Append (chunk0: StreamChunk<'id, 'event, 'header>) (chunk1: StreamChunk<'id, 'event, 'header>) =
+  //
+  //   if (chunk0.Version + 1u = chunk1.FromSequenceId) then
+  //     // if chunk0.IsZero() then
+  //     //   chunk1
+  //     // else
+  //       chunk0.Events.Append()
+  //       {
+  //       chunk0 with
+  //         Stream.Version = chunk1.ToSequenceId
+  //         Events = chunk1.Events |> Seq.append chunk0.Events}
+  //       // { StreamId = chunk0.StreamId
+  //       //   FromSequenceId = chunk1.FromSequenceId
+  //       //   ToSequenceId = chunk0.ToSequenceId
+  //       //   Events =  }
+  //   else
+  //     failwith
+  //       $"Cannot append chunks. Source chunk version = {chunk0.FromSequenceId}, appending chunk version = {chunk1.ToSequenceId}"
 
   static member Zero =
     let events: StorableEvent<'id, 'event, 'header> list = []

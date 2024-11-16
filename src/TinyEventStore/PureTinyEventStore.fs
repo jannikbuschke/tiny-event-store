@@ -40,58 +40,72 @@ let rehydrate<'id, 'state, 'event, 'header>
 //
 // state
 
+let applyEvents<'id, 'state, 'event, 'header, 'sideEffect>
+  (aggregate: Aggregate<'id, 'state, 'event, 'header>)
+  (oldState: 'state)
+  (oldStreamState: Stream<'id, 'event, 'header>)
+  (events: EventEnvelope<'id, 'event, 'header> list)
+  // (id: 'id, events: ('event * 'header) list)
+  =
+  let newEvents = events
+
+  if newEvents.Length = 0 then
+    failwith "Events are empty, not supported"
+
+  let newState = newEvents |> List.fold aggregate.evolve oldState
+
+  let lastEvent = newEvents |> List.last
+
+  let combinedEvents = (oldStreamState.Events |> Seq.toList) @ newEvents
+
+  let newStream =
+    { oldStreamState with
+        Events = combinedEvents |> ResizeArray
+        Version = lastEvent.Version }
+
+  let newStateChunk =
+    { State = newState
+      // maybe change to StreamChunk, when snapshots are involved, not all events are loaded
+      Stream = newStream
+      EventsChunk = newEvents }
+
+  let previousState =
+    { State = oldState
+      Stream = oldStreamState
+      Events = oldStreamState.Events |> Seq.toList }
+
+  let isDeleted = aggregate.shouldDelete newStateChunk previousState
+
+  let result: AppendEventsResult<'id, 'state, 'event, 'header> =
+    { NewState = newState
+      ShouldDelete = isDeleted
+      NewStream = newStream
+      NewEvents = newEvents
+      PreviousState = oldState
+      PreviousStream = oldStreamState
+      PreviousEvents = oldStreamState.Events |> Seq.toList }
+
+  result
+
 let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
-  (currenState: Stream<'id, 'event, 'header>)
+  (currentState: Stream<'id, 'event, 'header>)
+  (id: 'id, events: ('event * 'header) list)
   =
-  fun (id: 'id, events: ('event * 'header) list) ->
-    let lastEventNumber =
-      currenState.Events
-      |> Seq.tryLast
-      |> Option.map _.Version
-      |> Option.defaultValue 0u
+  let oldState = rehydrate aggregate.zero aggregate.evolve currentState
 
-    let oldState = rehydrate aggregate.zero aggregate.evolve currenState
+  let lastEventNumber =
+    currentState.Events
+    |> Seq.tryLast
+    |> Option.map _.Version
+    |> Option.defaultValue 0u
 
-    let newEvents = events
+  let newEvents =
+    events
+    |> List.mapi (fun i (evt, header) -> EventEnvelope.Create(id, evt, header, ((uint i) + lastEventNumber + 1u)))
 
-    let newEvents =
-      newEvents
-      |> List.mapi (fun i (evt, header) -> EventEnvelope.Create(id, evt, header, ((uint i) + lastEventNumber + 1u)))
-
-    let newState = newEvents |> List.fold aggregate.evolve oldState
-
-    let lastEvent = newEvents |> List.last
-
-    let combinedEvents = (currenState.Events |> Seq.toList) @ newEvents
-
-    let newStream =
-      { currenState with
-          Events = combinedEvents |> ResizeArray
-          Version = lastEvent.Version }
-
-    let newStateChunk =
-      { State = newState
-        Stream = newStream
-        EventsChunk = newEvents }
-
-    let previousState =
-      { State = oldState
-        Stream = currenState
-        Events = currenState.Events |> Seq.toList }
-
-    let isDeleted = aggregate.shouldDelete newStateChunk previousState
-
-    let result: AppendEventsResult<'id, 'state, 'event, 'header> =
-      { NewState = newState
-        ShouldDelete = isDeleted
-        NewStream = newStream
-        NewEvents = newEvents
-        PreviousState = oldState
-        PreviousStream = currenState
-        PreviousEvents = currenState.Events |> Seq.toList }
-
-    result
+  let result = applyEvents aggregate oldState currentState newEvents
+  result
 
 let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)

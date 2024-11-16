@@ -114,8 +114,8 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
             FromSequenceId = events.Head.SequenceId
             ToSequenceId = events.Last().SequenceId }
 
-        if not (stream.ToSequenceId > stream.FromSequenceId) then
-          failwith ("to sequence id <= From Sequence id")
+        if stream.FromSequenceId > stream.ToSequenceId then
+          failwith ($"From sequence id ({stream.FromSequenceId}) > To Sequence id ({stream.ToSequenceId})")
 
         stream)
 

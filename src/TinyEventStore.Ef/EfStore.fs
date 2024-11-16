@@ -26,7 +26,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> 'id
         -> ('event * 'header) list
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
-    rerunProject: IServiceProvider -> Task<('state * Stream<'id, 'event, 'header>) list>
+    // rerunProject: IServiceProvider -> Task<('state * Stream<'id, 'event, 'header>) list>
     replayProjection: IServiceProvider -> IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: IServiceProvider -> 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
@@ -66,7 +66,7 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
   let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
   let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
   let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
-  let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
+  // let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
 
   let updateEventStore2 (ctx: IServiceProvider) operationResult =
     let db = ctx.GetService<'Db>()
@@ -86,7 +86,7 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     applyOperationResultToProjections = fun _ _ -> ()
     appendEvents = appendEvents
     updateEventStore2 = updateEventStore2
-    rerunProject = rerunProjection
+    // rerunProject = rerunProjection
     replayProjection = fun _ _ -> failwith "Not implemented"
     applyCommand = fun _ _ -> failwith "Not Implemented1"
     applyEvents = fun _ _ -> failwith "Not Implemented2"
@@ -110,7 +110,8 @@ type Configuration() =
     let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
     let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
-    let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
+    // let rerunProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> zero evolve
+    let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate // ctx // projection.Apply
 
     let applyResultToProjections serviceProvider result =
       projections |> List.iter (fun p -> p.Apply serviceProvider result)
@@ -148,8 +149,14 @@ type Configuration() =
       applyCommand = applyCommand
       applyEvents = applyEvents
       updateEventStore2 = updateEventStore2
-      rerunProject = rerunProjection
-      replayProjection = fun _ _ -> failwith "Not implemented"
+      // rerunProject = rerunProjection
+      replayProjection =
+        fun ctx projection ->
+          taskResult {
+            let! result = replayProjection ctx projection
+            return ()
+          }
+
       saveChangesAsync =
         fun (ctx) ->
           taskResult {
