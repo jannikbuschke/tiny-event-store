@@ -6,26 +6,27 @@ open Microsoft.Extensions.Logging
 open TinyEventStore
 open FsToolkit.ErrorHandling
 open Microsoft.Extensions.DependencyInjection
-open TinyEventStore.EfEs
+open TinyEventStore.Ef.Store
 open TinyEventStore.Test.Chess.Db
+open TinyEventStore.Ef.Projections
 
 type Id = Chess.GameId
 type Command = Chess.Command
 type CommandHeader = Dictionary<string, obj>
 type CommandEnvelope = CommandEnvelope<Id, Command, CommandHeader>
 type Event = Chess.Event
-type EventHeader = TinyEventStore.Test.Chess.Db.ChessEventHeader
+type EventHeader = Db.ChessEventHeader
 type EventEnvelope = ChessEventEnvelope
 type SideEffect = unit
 type State = Chess.Game
-type Db = TinyEventStore.Test.Chess.Db.ChessDb
+type Db = ChessDb
 
 let decide =
   (fun state command ->
     match Chess.decide state command.Payload with
     | Ok resultValue ->
       let eventEnvelopes = resultValue |> List.map (fun e -> e, EventHeader())
-      Result.Ok(eventEnvelopes, [])
+      Ok(eventEnvelopes, [])
     | Error errorValue -> Result.Error errorValue)
 
 let aggregate: Aggregate<Id, State, Event, EventHeader> =
@@ -39,15 +40,7 @@ let listProjection =
       IsFinished = false })
 
 let store =
-  EfEs.Configuration.Configure<
-    Id,
-    State,
-    Event,
-    EventHeader,
-    Command,
-    CommandHeader,
-    TinyEventStore.Test.Chess.Db.ChessDb
-   >(
+  Configuration.Configure<Id, State, Event, EventHeader, Command, CommandHeader, TinyEventStore.Test.Chess.Db.ChessDb>(
     aggregate,
     decide,
     // []
@@ -100,16 +93,7 @@ let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
   }
 
 let settingsStore =
-  TinyEventStore.EfEs.efCreate<
-    Id,
-    Db.ChessSettings,
-    SettingsEvent,
-    EventHeader,
-    SettingsCommand,
-    CommandHeader,
-    SideEffect,
-    TinyEventStore.Test.Chess.Db.ChessDb
-   >
+  efCreate<Id, Db.ChessSettings, SettingsEvent, EventHeader, SettingsCommand, CommandHeader, SideEffect, ChessDb>
     SettingsLogic.zero
     (fun state e -> SettingsLogic.evolve state e.Payload)
     (fun state command ->
@@ -117,7 +101,7 @@ let settingsStore =
         SettingsLogic.handle state command.Payload
         |> List.map (fun e -> e, EventHeader())
 
-      Result.Ok(events, []))
+      Ok(events, []))
 
 let handleSettingsCommand (ctx: HttpContext) (streamId: Id, command: SettingsCommand) =
   taskResult {
@@ -130,7 +114,7 @@ let handleSettingsCommand (ctx: HttpContext) (streamId: Id, command: SettingsCom
     let! commandResult = runCommand commandEnvelope
     settingsStore.updateEventStore2 ctx.RequestServices commandResult
     let db = store.getDb ctx.RequestServices
-    let allEntries = db.ChangeTracker.Entries() |> Seq.toList
+    // let allEntries = db.ChangeTracker.Entries() |> Seq.toList
 
     db.ChangeTracker.Entries()
     |> Seq.iter (fun x -> (logger.LogInformation(sprintf "Entry %A" x)))

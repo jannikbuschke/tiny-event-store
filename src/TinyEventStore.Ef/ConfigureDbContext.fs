@@ -4,7 +4,7 @@ open System.Runtime.CompilerServices
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
 open FsToolkit.ErrorHandling
-open EfUtils
+open Core
 open Json
 open TinyEventStore.Ef.Storables
 

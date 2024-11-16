@@ -1,4 +1,4 @@
-﻿module TinyEventStore.Projections
+module TinyEventStore.Projections
 
 open System
 

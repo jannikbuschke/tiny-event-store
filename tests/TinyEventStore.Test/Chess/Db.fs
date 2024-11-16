@@ -11,10 +11,12 @@ type GameEvent = Chess.Event
 
 type ChessSettings = { DefaultGameTime: TimeSpan }
 
+[<RequireQualifiedAccess>]
 type SettingsCommand =
   | Create of ChessSettings
   | Update of ChessSettings
 
+[<RequireQualifiedAccess>]
 type SettingsEvent =
   | Created of ChessSettings
   | Updated of ChessSettings
@@ -22,12 +24,12 @@ type SettingsEvent =
 module SettingsLogic =
   let zero = { ChessSettings.DefaultGameTime = TimeSpan.Zero }
 
-  let evolve state event =
+  let evolve _ event =
     match event with
-    | Created settings -> settings
-    | Updated settings -> settings
+    | SettingsEvent.Created settings -> settings
+    | SettingsEvent.Updated settings -> settings
 
-  let handle state command =
+  let handle _ command =
     match command with
     | SettingsCommand.Create settings -> [ SettingsEvent.Created settings ]
     | SettingsCommand.Update settings -> [ SettingsEvent.Updated settings ]

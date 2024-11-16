@@ -1,39 +1,44 @@
-module TinyEventStore.Queries
+module TinyEventStore.Ef.Queries
 
 open System
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
 open TinyEventStore.Ef.Storables
 open System.Linq
+open Microsoft.Extensions.DependencyInjection
+open FsToolkit.ErrorHandling
+open Core
 
 let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
   task {
-    // try
-    let! stream =
-      db
-        .Set<StorableStream<'id, 'event, 'header>>()
-        // ORDER children by
-        .Include(fun x -> x.Children)
-        .AsNoTracking()
-        .SingleOrDefaultAsync(fun x -> x.Id = id)
+    try
+      let! stream =
+        db
+          .Set<StorableStream<'id, 'event, 'header>>()
+          // ORDER children by
+          .Include(fun x -> x.Children)
+          .AsNoTracking()
+          .SingleOrDefaultAsync(fun x -> x.Id = id)
 
-    let stream: Stream<'id, 'event, 'header> =
-      if box stream = null then
-        let stream =
-          { Stream.Id = id
-            Version = 0u
-            // Created = DateTimeOffset.UtcNow
-            Created = DateTimeOffset.MinValue
-            Modified = DateTimeOffset.MinValue
-            Events = ResizeArray([]) }
+      let stream: Stream<'id, 'event, 'header> =
+        if box stream = null then
+          let stream =
+            { Stream.Id = id
+              Version = 0u
+              // Created = DateTimeOffset.UtcNow
+              Created = DateTimeOffset.MinValue
+              Modified = DateTimeOffset.MinValue
+              Events = ResizeArray([]) }
 
-        stream
-      else
-        // stream
-        let coreStream = Storable.toStream stream
-        coreStream
+          stream
+        else
+          // stream
+          let coreStream = Storable.toStream stream
+          coreStream
 
-    return stream
+      return Ok stream
+    with e ->
+      return Error(e.Message)
   // return Ok(stream)
   }
 
@@ -123,4 +128,54 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
     //     }
     //   )
     return streams2
+  }
+
+let efRehydrate2<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
+  (zero: 'state)
+  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (ctx: IServiceProvider)
+  (id: 'id)
+  // : TaskResult<('state) * Stream<'id, 'event, 'header>, string>
+  =
+  let db = ctx.GetRequiredService<'Db>()
+  let loadEvents = loadStorableStream<'id, 'event, 'header> db
+
+  taskResult {
+    let! stream = loadEvents id
+    let state = PureStore.rehydrate zero evolve stream
+    return state, stream
+  }
+
+let rehydrateMany<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
+  (zero: 'state)
+  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (ctx: IServiceProvider)
+  (id: 'id list)
+  =
+  let db = ctx.GetRequiredService<'Db>()
+  let loadEvents = loadMultipleStorableStream<'id, 'event, 'header> db
+
+  taskResult {
+    let! streams = loadEvents id
+
+    return
+      streams
+      |> Seq.map (fun stream -> (PureStore.rehydrate zero evolve stream), stream)
+      |> Seq.toList
+  }
+
+let rehydrateAll<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
+  (zero: 'state)
+  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (ctx: IServiceProvider)
+  =
+  let db = ctx.GetRequiredService<'Db>()
+
+  taskResult {
+    let! streams = loadAllStorableStream<'id, 'event, 'header> db
+
+    return
+      streams
+      |> Seq.map (fun stream -> (PureStore.rehydrate zero evolve stream), stream)
+      |> Seq.toList
   }

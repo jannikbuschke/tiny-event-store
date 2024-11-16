@@ -14,8 +14,8 @@ let services = ServiceCollection()
 let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
 let dbName = "test-tiny-event-store-chess"
 
-let path = System.IO.Path.GetFullPath(".env.local")
-let currentDir = System.IO.Directory.GetCurrentDirectory()
+let path = IO.Path.GetFullPath(".env.local")
+let currentDir = IO.Directory.GetCurrentDirectory()
 dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
 let variables = System.Environment.GetEnvironmentVariables()
 let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
@@ -25,7 +25,7 @@ services.AddDbContext<ChessDb>(fun x -> x.UseNpgsql(connectionString.Replace("{d
 |> ignore
 
 //configure Serilog logger that writes to a file
-Serilog.Log.Logger <-
+Log.Logger <-
   Serilog
     .LoggerConfiguration()
     .WriteTo.File("logs/log-.log", rollingInterval = RollingInterval.Day)
@@ -84,21 +84,21 @@ let ``Many events on one stream`` () =
     use scope0 = serviceProvider.CreateScope()
     let httpContext = DefaultHttpContext(RequestServices = scope0.ServiceProvider)
     let id = GameId.FromRaw 1
-    let! result1 = TinyEventStore.Test.Chess.Handler.handleGameCommand httpContext (id, Chess.Command.CreateGame)
+    let! _ = Handler.handleGameCommand httpContext (id, Command.CreateGame)
 
     let move () =
       task {
         use scope0 = serviceProvider.CreateScope()
         let httpContext = DefaultHttpContext(RequestServices = scope0.ServiceProvider)
 
-        let! result2 =
-          TinyEventStore.Test.Chess.Handler.handleGameCommand
+        let! _ =
+          Handler.handleGameCommand
             httpContext
             (id,
-             Chess.Command.MovePiece
+             Command.MovePiece
                { From = Square.FromRaw "e2"
                  To = Square.FromRaw "e4"
-                 ChessPiece = (Piece.Bishop, Color.White) })
+                 ChessPiece = (Bishop, White) })
 
         return ()
       }

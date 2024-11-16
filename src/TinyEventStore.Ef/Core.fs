@@ -1,4 +1,4 @@
-module TinyEventStore.EfUtils
+module TinyEventStore.Ef.Core
 
 open Microsoft.EntityFrameworkCore
 open TinyEventStore

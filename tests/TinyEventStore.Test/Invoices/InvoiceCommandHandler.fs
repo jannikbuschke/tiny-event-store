@@ -1,14 +1,11 @@
-﻿module MyTestDomain.Invoicing.CommandHandler
+module MyTestDomain.Invoicing.CommandHandler
 
 open System
-open Microsoft.AspNetCore.Http
-open MyTestDomain
 open MyTestDomain.Invoicing.Core
 open MyTestDomain.Invoicing.Db
 open MyTestDomain.Invoicing.Projections
 open TinyEventStore
 open FsToolkit.ErrorHandling
-open Microsoft.Extensions.DependencyInjection
 
 type Command = MyTestDomain.Invoicing.Core.Command
 type CommandEnvelope = CommandEnvelope<Guid, Command, unit>
@@ -19,17 +16,11 @@ type State = MyTestDomain.Invoicing.Projections.InvoiceData
 
 let validateDraftPosition (position: DraftPosition) : Result<InvoicePosition, string> =
   result {
-    let! description =
-      position.Description
-      |> Result.requireSome "Description is required"
+    let! description = position.Description |> Result.requireSome "Description is required"
 
-    let! quantity =
-      position.Quantity
-      |> Result.requireSome "Quantity is required"
+    let! quantity = position.Quantity |> Result.requireSome "Quantity is required"
 
-    let! price =
-      position.Price
-      |> Result.requireSome "Price is required"
+    let! price = position.Price |> Result.requireSome "Price is required"
 
     return
       { InvoicePosition.Description = description
@@ -39,13 +30,9 @@ let validateDraftPosition (position: DraftPosition) : Result<InvoicePosition, st
 
 let finaliseDraft (draft: InvoiceDraft) : Result<Invoice, string> =
   result {
-    let! customerId =
-      draft.CustomerId
-      |> Result.requireSome "Customerid is required"
+    let! customerId = draft.CustomerId |> Result.requireSome "Customerid is required"
     // let! dueDate = draft.DueDate |> Result.requireSome ("DueDate is required")
-    let! number =
-      draft.InvoiceNumber
-      |> Result.requireSome "InvoiceNumber is required"
+    let! number = draft.InvoiceNumber |> Result.requireSome "InvoiceNumber is required"
 
     let! positions =
       draft.Positions
