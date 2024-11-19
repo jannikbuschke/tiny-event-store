@@ -39,7 +39,11 @@ type ChessEventHeader = Dictionary<string, obj>
 type ChessEventEnvelope = EventEnvelope<Id, GameEvent, ChessEventHeader>
 
 [<CLIMutable>]
-type ChessGameListItem = { Id: Id; IsFinished: bool }
+type ChessGameListItem =
+  { Id: Id
+    Version: uint
+    IsFinished: bool
+    History: string }
 
 type ChessDb =
   inherit DbContext

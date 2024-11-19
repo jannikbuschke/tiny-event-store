@@ -46,7 +46,8 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     applyOperationResultToProjections = fun _ _ -> ()
     appendEvents = appendEvents
     updateEventStore2 = updateEventStore2
-    replayProjection = fun _ _ -> failwith "Not implemented"
+    replayProjection = fun _ _ -> failwith "Not implemented0"
     applyCommand = fun _ _ -> failwith "Not Implemented1"
     applyEvents = fun _ _ -> failwith "Not Implemented2"
-    saveChangesAsync = fun _ -> failwith "Not Implemented3" }
+    saveChangesAsync = fun _ -> failwith "Not Implemented3"
+    saveChangesAsyncWithResult = fun _ -> failwith "Not Implemented3" }

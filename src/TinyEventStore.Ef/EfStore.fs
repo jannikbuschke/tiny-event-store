@@ -41,7 +41,8 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> 'id * ('event * 'header) list
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     aggregate: Aggregate<'id, 'state, 'event, 'header>
-    saveChangesAsync: IServiceProvider -> TaskResult<unit, string> }
+    saveChangesAsync: IServiceProvider -> TaskResult<unit, string>
+    saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string> }
 
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
@@ -104,6 +105,14 @@ type Configuration() =
           taskResult {
             let! result = replayProjection ctx projection
             return ()
+          }
+
+      saveChangesAsyncWithResult =
+        fun (ctx) ->
+          taskResult {
+            let db = ctx.GetService<'Db>()
+            let! r = db.SaveChangesAsync()
+            return r
           }
 
       saveChangesAsync =

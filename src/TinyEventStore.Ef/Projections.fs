@@ -1,11 +1,9 @@
 module TinyEventStore.Ef.Projections
 
 open System
-open System.Threading.Tasks
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open TinyEventStore
-open FsToolkit.ErrorHandling
 open TinyEventStore.Ef.Storables
 open Queries
 open Core
@@ -67,20 +65,19 @@ let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :>
   (services: IServiceProvider)
   (projection: IEfProjection<'id, 'state, 'event, 'header, 'db>)
   =
-  let db = services.GetRequiredService<'db>()
 
   let memory =
     Collections.Generic.Dictionary<'id, 'state * Stream<'id, 'event, 'header>>()
 
   task {
     let mutable running = true
-    // 1...500
-    // 501...1000
     let mutable version = 0u
 
     while running do
       let fromSequence = version + 1u
       let untilIncludingSequence = version + 10u
+      use scope = services.CreateScope()
+      let db = scope.ServiceProvider.GetRequiredService<'db>()
       printfn "Rerunning %d -> %d" fromSequence untilIncludingSequence
 
       let! streamsAndState =
@@ -88,18 +85,19 @@ let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :>
 
       streamsAndState
       |> Seq.iter (fun (result) ->
-        projection.Apply services result
+        projection.Apply scope.ServiceProvider result
         printfn "Stream chunk %A events = %A" result.NewStream.Id result.NewEvents.Length
         // apply events to db and call save changes
         memory.[result.NewStream.Id] <- (result.New.State, result.New.Stream)
         ())
 
       let! x = db.SaveChangesAsync()
+
+      if streamsAndState |> Seq.length = 0 then
+        running <- false
+
       printfn "saved %d changes while rerunning prohection (%d->%d)" x fromSequence untilIncludingSequence
       version <- untilIncludingSequence
-
-      if true then
-        running <- false
 
   // let result =
   //   memory.Values

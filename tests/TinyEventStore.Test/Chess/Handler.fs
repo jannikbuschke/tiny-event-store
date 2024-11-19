@@ -34,9 +34,30 @@ let aggregate: Aggregate<Id, State, Event, EventHeader> =
     evolve = (fun state e -> Chess.evolve state e.Payload)
     shouldDelete = fun x _ -> x.EventsChunk |> List.exists (fun e -> e.Payload = Event.Deleted) }
 
+let asPgn (e: Chess.PieceMovement, color: Chess.Color, move: int) =
+  let movement = e.Pgn()
+
+  match color with
+  | Chess.Color.White -> $"{move}. {movement}"
+  | Chess.Color.Black -> $" {movement}"
+
 let listProjection =
   new EfProjection<Id, State, Event, EventHeader, ChessGameListItem, Db>(fun op ->
+    let history =
+      op.New.EventsChunk
+      |> List.fold
+        (fun acc v ->
+          let result =
+            match v.Payload with
+            | Event.PieceMoved m -> asPgn (m, Chess.Color.Black, 1)
+            | _ -> ""
+
+          acc + result)
+        ""
+
     { ChessGameListItem.Id = op.PreviousStream.Id
+      Version = op.New.Stream.Version
+      History = history
       IsFinished = false })
 
 let store =
@@ -52,8 +73,9 @@ let replay (ctx: HttpContext) (projection: EfProjection<Id, State, Event, EventH
 let appendEvents (ctx: HttpContext) (streamId: Id, events: Event list) =
   taskResult {
     let events = events |> List.mapi (fun _ e -> e, Dictionary())
-    let! _ = store.applyEvents ctx.RequestServices (streamId, events)
-    do! store.saveChangesAsync ctx.RequestServices
+    let! result = store.applyEvents ctx.RequestServices (streamId, events)
+    let! r2 = store.saveChangesAsyncWithResult ctx.RequestServices
+    return ()
   }
 
 let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
@@ -71,7 +93,7 @@ let handleGameCommand (ctx: HttpContext) (streamId: Id, command: Command) =
 let settingsAggregate =
   { Aggregate.zero = SettingsLogic.zero
     evolve = (fun state e -> SettingsLogic.evolve state e.Payload)
-    shouldDelete = failwith "Not Implemented" }
+    shouldDelete = fun _ _ -> failwith "Not Implemented" }
 
 let settingsDecide =
   (fun state command ->
