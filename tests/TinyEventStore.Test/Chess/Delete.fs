@@ -1,69 +1,34 @@
 module TinyEventStore.Test.Chess.Delete
 
-open System
 open Chess
-open Microsoft.AspNetCore.Http
 open Microsoft.EntityFrameworkCore
-open Microsoft.Extensions.DependencyInjection
 open TinyEventStore.Test.Chess.Db
 open Xunit
-open Serilog
 open FsToolkit.ErrorHandling
 open TinyEventStore.Test.Chess
+open Expecto
+open TinyEventStore.Test.Context
 
-let services = ServiceCollection()
-let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
-let dbName = "test-tiny-event-store-chess"
+let testCases =
+  [ esTest "Delete command should delete read model"
+    <| fun ctx ->
+      taskResult {
+        let httpContext = ctx.CreateHttpContext()
+        let id = GameId.FromRaw 1
 
-let path = System.IO.Path.GetFullPath(".env.local")
-let currentDir = IO.Directory.GetCurrentDirectory()
-dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
-let variables = System.Environment.GetEnvironmentVariables()
-let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
-let connectionString' = connectionString.Replace("{dbName}", dbName)
+        let! _ = (id, [ GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
 
-services.AddDbContext<ChessDb>(fun x -> x.UseNpgsql(connectionString.Replace("{dbName}", dbName)) |> ignore)
-|> ignore
+        let store = Handler.store.getDb httpContext.RequestServices
+        let! item = store.ChessGames.FirstAsync()
+        TinyEventStore.Check.expect <@ item.Id = id @>
 
-//configure Serilog logger that writes to a file
-Log.Logger <-
-  Serilog
-    .LoggerConfiguration()
-    .WriteTo.File("logs/log-.log", rollingInterval = RollingInterval.Day)
-    .CreateLogger()
+        let httpContext = ctx.CreateHttpContext()
+        let! _ = Handler.handleGameCommand httpContext (id, Command.Delete)
 
-services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Serilog.Log.Logger) |> ignore)
-|> ignore
+        let! item = store.ChessGames.FirstOrDefaultAsync()
+        Assert.Null item
+        // TinyEventStore.Check.expect <@ box item = null @>
+        return ()
+      } ]
 
-let serviceProvider = services.BuildServiceProvider()
-
-serviceProvider.GetService<ChessDb>().Database.EnsureDeleted() |> ignore
-serviceProvider.GetService<ChessDb>().Database.EnsureCreated() |> ignore
-
-let createHttpContext () =
-  let scope0 = serviceProvider.CreateScope()
-  DefaultHttpContext(RequestServices = scope0.ServiceProvider)
-
-[<Fact>]
-let ``Delete`` () =
-  taskResult {
-    let httpContext = createHttpContext ()
-    let id = GameId.FromRaw 1
-
-    let! _ = (id, [ GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
-
-    let store = Handler.store.getDb httpContext.RequestServices
-    let! item = store.ChessGames.FirstAsync()
-    TinyEventStore.Check.expect <@ item.Id = id @>
-
-    let httpContext = createHttpContext ()
-    let! _ = Handler.handleGameCommand httpContext (id, Command.Delete)
-
-    let! item = store.ChessGames.FirstOrDefaultAsync()
-    Assert.Null item
-    // TinyEventStore.Check.expect <@ box item = null @>
-    return ()
-  }
-  |> TaskResult.mapError (fun x ->
-    failwith (sprintf "Task result failed: %s" x)
-    ())
+// let tests = testList "deletes" testCases

@@ -9,6 +9,7 @@ open Microsoft.Extensions.DependencyInjection
 open TinyEventStore.Ef.Store
 open TinyEventStore.Test.Chess.Db
 open TinyEventStore.Ef.Projections
+open Expecto
 
 type Id = Chess.GameId
 type Command = Chess.Command

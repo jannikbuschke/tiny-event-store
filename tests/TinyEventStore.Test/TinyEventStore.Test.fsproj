@@ -14,17 +14,19 @@
 
     <ItemGroup>
         <Compile Include="Check.fs" />
+        <Compile Include="TestContext.fs" />
         <Compile Include="Invoices\Invoice.fs" />
         <Compile Include="Invoices\InvoiceProjections.fs" />
         <Compile Include="Invoices\InvoiceDb.fs" />
         <Compile Include="Invoices\InvoiceCommandHandler.fs" />
         <Compile Include="Invoices\InvoicingEventStore.fs" />
         <Compile Include="Invoices\Test.fs" />
+        <Compile Include="Chess\TestData.fs" />
         <Compile Include="Chess\Db.fs" />
         <Compile Include="Chess\Handler.fs" />
         <Compile Include="Chess\ChessTest.fs" />
         <Compile Include="Chess\Delete.fs" />
-        <Compile Include="Chess\ProjectionReplay.fs" />
+        <Compile Include="Chess\ProjectionReplayExpecto.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
         <Compile Include="Program.fs" />
@@ -41,6 +43,8 @@
         <PackageReference Include="Verify.DiffPlex" Version="3.0.0" />
         <PackageReference Include="Verify.Xunit" Version="24.1.0" />
         <PackageReference Include="dotenv.net" Version="3.1.3" />
+        <PackageReference Include="Expecto" Version="9.*" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" Version="0.*" />
 
     </ItemGroup>
 

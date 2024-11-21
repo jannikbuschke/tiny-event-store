@@ -78,7 +78,7 @@ let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :>
       let untilIncludingSequence = version + 10u
       use scope = services.CreateScope()
       let db = scope.ServiceProvider.GetRequiredService<'db>()
-      printfn "Rerunning %d -> %d" fromSequence untilIncludingSequence
+      // printfn "Rerunning %d -> %d" fromSequence untilIncludingSequence
 
       let! streamsAndState =
         rerunProjection<'state, 'id, 'event, 'header> memory originalAggregate db fromSequence untilIncludingSequence
@@ -86,7 +86,7 @@ let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :>
       streamsAndState
       |> Seq.iter (fun (result) ->
         projection.Apply scope.ServiceProvider result
-        printfn "Stream chunk %A events = %A" result.NewStream.Id result.NewEvents.Length
+        // printfn "Stream chunk %A events = %A" result.NewStream.Id result.NewEvents.Length
         // apply events to db and call save changes
         memory.[result.NewStream.Id] <- (result.New.State, result.New.Stream)
         ())
@@ -96,7 +96,7 @@ let rerunProject<'id, 'state, 'event, 'header, 'db when 'id: equality and 'db :>
       if streamsAndState |> Seq.length = 0 then
         running <- false
 
-      printfn "saved %d changes while rerunning prohection (%d->%d)" x fromSequence untilIncludingSequence
+      // printfn "saved %d changes while rerunning prohection (%d->%d)" x fromSequence untilIncludingSequence
       version <- untilIncludingSequence
 
   // let result =
