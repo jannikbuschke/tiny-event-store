@@ -1,12 +1,11 @@
 module Program
 
-// let tests = testList "replays" testCases
-let x =
-  Expecto.Tests.testList "replay" TinyEventStore.Test.Chess.ProjectionReplayExpecto.testCases
 
-let y = Expecto.Tests.testList "replay" TinyEventStore.Test.Chess.Delete.testCases
-
-let all = Expecto.Tests.testList "all" [ x; y ]
+let all =
+  Expecto.Tests.testList
+    "all"
+    [ Expecto.Tests.testList "replay" TinyEventStore.Test.Chess.ProjectionReplayExpecto.testCases
+      Expecto.Tests.testList "replay" TinyEventStore.Test.Chess.Delete.testCases ]
 
 [<EntryPoint>]
 let main argv =

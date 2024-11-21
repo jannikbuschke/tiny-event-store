@@ -4,7 +4,6 @@ open Expecto
 open Expecto.Flip
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.AspNetCore.Http
-
 open Microsoft.EntityFrameworkCore
 open Serilog
 
@@ -16,11 +15,8 @@ type TestContext =
 let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
   let dbName = dbName.Replace(" ", "-")
   let services = ServiceCollection()
-  // let testId = DateTimeOffset.Now.ToString("yyyy-MM-dd-HH-mm-ss")
   let dbName = $"test-tiny-event-store-chess-{dbName}"
 
-  // let path = System.IO.Path.GetFullPath(".env.local")
-  // let currentDir = System.IO.Directory.GetCurrentDirectory()
   dotenv.net.DotEnv.Load(dotenv.net.DotEnvOptions(envFilePaths = [ ".env.local" ]))
   // let variables = System.Environment.GetEnvironmentVariables()
   let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
@@ -35,7 +31,7 @@ let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
       .WriteTo.Seq("http://localhost:5341")
       .CreateLogger()
 
-  services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Serilog.Log.Logger) |> ignore)
+  services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Log.Logger) |> ignore)
   |> ignore
 
   let serviceProvider = services.BuildServiceProvider()
@@ -50,8 +46,6 @@ let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
         let scope0 = serviceProvider.CreateScope()
         DefaultHttpContext(RequestServices = scope0.ServiceProvider)
     Teardown = fun () -> serviceProvider.GetService<'db>().Database.EnsureDeleted() |> ignore }
-
-
 
 let esTest name f =
   testTask name {
