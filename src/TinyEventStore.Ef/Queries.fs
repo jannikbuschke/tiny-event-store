@@ -9,6 +9,12 @@ open Microsoft.Extensions.DependencyInjection
 open FsToolkit.ErrorHandling
 open Core
 
+let queryStorableStreams<'id, 'event, 'header when 'id: equality> (db: DbContext) =
+  db.Set<StorableStream<'id, 'event, 'header>>().AsNoTracking()
+
+let queryStreams<'id, 'event, 'header when 'id: equality> (db: DbContext) =
+  (queryStorableStreams<'id, 'event, 'header> db).Select(Storable.toStream)
+
 let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
   task {
     try

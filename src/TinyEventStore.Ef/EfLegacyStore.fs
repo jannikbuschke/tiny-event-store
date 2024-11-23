@@ -50,4 +50,5 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     applyCommand = fun _ _ -> failwith "Not Implemented1"
     applyEvents = fun _ _ -> failwith "Not Implemented2"
     saveChangesAsync = fun _ -> failwith "Not Implemented3"
+    queryStreams = fun _ -> failwith "Not Implemented4"
     saveChangesAsyncWithResult = fun _ -> failwith "Not Implemented3" }

@@ -9,6 +9,7 @@ open Queries
 open Core
 open TinyEventStore.Ef.Projections
 open TinyEventStore.Ef.Handler
+open System.Linq
 
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext> =
   { prepare:
@@ -42,7 +43,8 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     aggregate: Aggregate<'id, 'state, 'event, 'header>
     saveChangesAsync: IServiceProvider -> TaskResult<unit, string>
-    saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string> }
+    saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string>
+    queryStreams: IServiceProvider -> IQueryable<Stream<'id, 'event, 'header>> }
 
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
@@ -63,6 +65,7 @@ type Configuration() =
     let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
     let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate // ctx // projection.Apply
+    let queryStreams = Queries.queryStreams<'id, 'event, 'header>
 
     let applyResultToProjections serviceProvider result =
       projections |> List.iter (fun p -> p.Apply serviceProvider result)
@@ -121,4 +124,11 @@ type Configuration() =
             let db = ctx.GetService<'Db>()
             let! _ = db.SaveChangesAsync()
             return ()
-          } }
+          }
+      queryStreams =
+        fun ctx ->
+
+          let db = ctx.GetService<'Db>()
+          queryStreams db
+
+    }
