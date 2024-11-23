@@ -11,7 +11,8 @@ open TinyEventStore.Ef.Projections
 open TinyEventStore.Ef.Handler
 open System.Linq
 
-type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext> =
+type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
+  when 'id: equality and 'Db :> DbContext> =
   { prepare:
       IServiceProvider
         -> 'id
@@ -44,7 +45,8 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     aggregate: Aggregate<'id, 'state, 'event, 'header>
     saveChangesAsync: IServiceProvider -> TaskResult<unit, string>
     saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string>
-    queryStreams: IServiceProvider -> IQueryable<Stream<'id, 'event, 'header>> }
+    queryStreams: IServiceProvider -> IQueryable<Stream<'id, 'event, 'header>>
+    queryRawStreams: IServiceProvider -> IQueryable<Storables.StorableStream<'id, 'event, 'header>> }
 
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
@@ -66,6 +68,7 @@ type Configuration() =
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
     let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate // ctx // projection.Apply
     let queryStreams = Queries.queryStreams<'id, 'event, 'header>
+    let queryRawStreams = Queries.queryStorableStreams<'id, 'event, 'header>
 
     let applyResultToProjections serviceProvider result =
       projections |> List.iter (fun p -> p.Apply serviceProvider result)
@@ -125,6 +128,10 @@ type Configuration() =
             let! _ = db.SaveChangesAsync()
             return ()
           }
+      queryRawStreams =
+        fun ctx ->
+          let db = ctx.GetService<'Db>()
+          queryRawStreams db
       queryStreams =
         fun ctx ->
 
