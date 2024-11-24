@@ -19,9 +19,9 @@ type AbstractStorableStream<'id when 'id: equality>() =
 and StorableStream<'id, 'event, 'header when 'id: equality>() =
   inherit AbstractStorableStream<'id>()
   let mutable id = Unchecked.defaultof<'id>
-  override this.Id = id
+  override _.Id = id
 
-  override this.Id
+  override _.Id
     with set value = id <- value
 
   member val Children = Unchecked.defaultof<ICollection<StorableEvent<'id, 'event, 'header>>> with get, set

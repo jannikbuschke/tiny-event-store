@@ -45,7 +45,6 @@ let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) 
       return Ok stream
     with e ->
       return Error(e.Message)
-  // return Ok(stream)
   }
 
 let loadMultipleStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id list) =

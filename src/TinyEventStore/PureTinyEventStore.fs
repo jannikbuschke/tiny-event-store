@@ -126,6 +126,7 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, '
         |> Option.map _.Version
         |> Option.defaultValue 0u
 
+      let isNew = lastEventNumber = 0u
       let oldState = rehydrate aggregate.zero aggregate.evolve currentStreamState
 
       let isExpectedVersion =
@@ -157,11 +158,22 @@ let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, '
 
       let oldEvents = currentStreamState.Events |> Seq.toList
       let combinedEvents = oldEvents @ newEvents
+
+      let streamCreatedAt =
+        if isNew then
+          combinedEvents
+          |> List.tryHead
+          |> Option.map _.Timestamp
+          |> Option.defaultValue currentStreamState.Created
+        else
+          currentStreamState.Created
+
       let lastEvent = combinedEvents |> List.last
       let combinedEvents = System.Collections.Generic.List(oldEvents @ newEvents)
 
       let newStream =
         { currentStreamState with
+            Created = streamCreatedAt
             Modified = lastEvent.Timestamp
             Events = combinedEvents
             Version = lastEvent.Version }
