@@ -3,7 +3,7 @@ module TinyEventStore.Test.Data
 open Chess
 
 module Streams =
-  let defaultGameCreatedEvent = GameCreated defaultPosition
+  let defaultGameCreatedEvent = Event.GameCreated defaultPosition
   let gameInitialized = [ defaultGameCreatedEvent ]
 
   let randomFreeSquare (position: Position) (rnd: System.Random) =
@@ -27,7 +27,7 @@ module Streams =
     let (square, piece) = position.Item(rnd.Next(position.Length))
     let target = randomFreeSquare position rnd
 
-    PieceMoved(
+    Event.PieceMoved(
       { PieceMovement.From = square
         To = target
         ChessPiece = piece }
@@ -37,7 +37,7 @@ module Streams =
     let state = position, []
 
     let result =
-      [ 0..(quantity-1) ]
+      [ 0 .. (quantity - 1) ]
       |> List.fold
         (fun (position, movements) _ ->
           let move = moveRandomPiece position rnd
@@ -49,7 +49,7 @@ module Streams =
 
   let standardGameWithoutResult (rnd: System.Random) (length: int) =
     let startPosition = defaultPosition
-    let start = GameCreated startPosition
+    let start = Event.GameCreated startPosition
     let result = randomMovements startPosition rnd length
     start :: result
 

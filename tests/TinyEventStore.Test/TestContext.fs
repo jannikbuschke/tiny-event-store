@@ -6,6 +6,7 @@ open Microsoft.Extensions.DependencyInjection
 open Microsoft.AspNetCore.Http
 open Microsoft.EntityFrameworkCore
 open Serilog
+open System.Threading.Tasks
 
 type TestContext =
   { Services: ServiceProvider
@@ -47,9 +48,19 @@ let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
         DefaultHttpContext(RequestServices = scope0.ServiceProvider)
     Teardown = fun () -> serviceProvider.GetService<'db>().Database.EnsureDeleted() |> ignore }
 
-let esTest name f =
+let fesTest<'db when 'db :> DbContext> name (f: TestContext -> Task<Result<unit, string>>) =
+  ftestTask name {
+    let ctx = bootstrapTestContext<'db> name
+
+
+    let! result = f ctx
+    result |> Result.iter ctx.Teardown
+    result |> Expect.isOk "Expected Ok"
+  }
+
+let esTest<'db when 'db :> DbContext> name (f: TestContext -> Task<Result<unit, string>>) =
   testTask name {
-    let ctx = bootstrapTestContext name
+    let ctx = bootstrapTestContext<'db> name
 
     let! result = f ctx
     result |> Result.iter ctx.Teardown

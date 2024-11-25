@@ -56,7 +56,7 @@ type ChessDb =
     with get () = this.chessGames
     and set v = this.chessGames <- v
 
-  override this.OnModelCreating(modelBuilder) =
+  override _.OnModelCreating(modelBuilder) =
     modelBuilder.Entity<ChessGameListItem>(fun e ->
       e.Property(fun x -> x.Id).HasConversion(Id.ToRaw, Id.FromRaw) |> ignore
 

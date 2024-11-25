@@ -26,26 +26,12 @@ let rehydrate<'id, 'state, 'event, 'header>
   (stream: Stream<'id, 'event, 'header>)
   =
   rehydrateEvents zero evolve stream.Events
-// let evolveWithVersionCheck (state, version) e =
-//   if e.Version <= version then
-//     failwith "Events are not ordered"
-//
-//   let innerState = evolve state e
-//   (innerState, e.Version)
-//
-// let state, _ =
-//   stream.Events
-//   |> Seq.sortBy _.Version
-//   |> Seq.fold evolveWithVersionCheck (zero, 0u)
-//
-// state
 
 let applyEvents<'id, 'state, 'event, 'header, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (oldState: 'state)
   (oldStreamState: Stream<'id, 'event, 'header>)
   (events: EventEnvelope<'id, 'event, 'header> list)
-  // (id: 'id, events: ('event * 'header) list)
   =
   let newEvents = events
 

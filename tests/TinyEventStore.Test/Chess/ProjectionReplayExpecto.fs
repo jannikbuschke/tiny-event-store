@@ -5,7 +5,6 @@ open TinyEventStore.Test.Chess.Db
 open Serilog
 open FsToolkit.ErrorHandling
 open Chess
-open Expecto
 open Microsoft.AspNetCore.Http
 open TinyEventStore.Test.Context
 
@@ -34,7 +33,9 @@ let testCases =
         let httpContext = ctx.CreateHttpContext()
         let id = GameId.FromRaw 1
 
-        let! _ = (id, [ GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
+        let i =
+          (id, [ Event.GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
+
         let store = Handler.store
         let db = store.getDb httpContext.RequestServices
         let! item = db.ChessGames.FirstAsync()
@@ -70,7 +71,7 @@ let testCases =
 
         // // insert one in between that we will delete
         let id = GameId.FromRaw 100
-        let! _ = (id, [ GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
+        let! _ = (id, [ Event.GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
         // // insert again many
         do! insertRandomGames httpContext rnd 100 101
 
