@@ -132,8 +132,11 @@ class Build : NukeBuild
                 .Requires(() => NugetApiUrl)
                 .Executes(() =>
                 {
-                    var env = File.ReadAllText(RootDirectory / ".env.local");
-                    var apiKey = env.Split("=")[1];
+                    dotenv.net.DotEnv.Load(
+                        new dotenv.net.DotEnvOptions(envFilePaths: [".env.local"])
+                    );
+                    ;
+                    var apiKey = System.Environment.GetEnvironmentVariable("nuget-api-key");
                     DotNetTasks.DotNetNuGetPush(_ =>
                         _.SetTargetPath(OutputDirectory / "*.nupkg")
                             .SetSource(NugetApiUrl)
