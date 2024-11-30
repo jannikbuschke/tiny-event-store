@@ -86,11 +86,21 @@ class Build : NukeBuild
                     );
                 });
 
+    Target Test =>
+        _ =>
+            _.DependsOn(Restore, Clean)
+                .Executes(() =>
+                {
+                    var version = GetVersion();
+                    DotNetTasks.DotNetRun(_ =>
+                        _.SetProjectFile(Solution.tests.TinyEventStore_Test)
+                    );
+                });
     AbsolutePath OutputDirectory = RootDirectory / "output";
 
     Target Pack =>
         _ =>
-            _.DependsOn(Compile)
+            _.DependsOn(Compile, Test)
                 .Executes(() =>
                 {
                     var version = GetVersion();
@@ -131,12 +141,12 @@ class Build : NukeBuild
                     );
                 });
 
-    Target Test =>
-        _ =>
-            _.Executes(() =>
-            {
-                DotNetTasks.DotNetTest(_ => _.SetProjectFile(Solution.tests.TinyEventStore_Test));
-            });
+    // Target Test =>
+    //     _ =>
+    //         _.Executes(() =>
+    //         {
+    //             DotNetTasks.DotNetTest(_ => _.SetProjectFile(Solution.tests.TinyEventStore_Test));
+    //         });
 
     [GitRepository]
     readonly GitRepository Repository;

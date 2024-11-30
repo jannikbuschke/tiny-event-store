@@ -23,6 +23,9 @@ let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
   // let variables = System.Environment.GetEnvironmentVariables()
   let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
 
+  if connectionString = null then
+    failwith "connection string not found"
+
   services.AddDbContext<'db>(fun x ->
     x.LogTo((fun v -> printfn "%s" v), LogLevel.Error).EnableSensitiveDataLogging()
     |> ignore
