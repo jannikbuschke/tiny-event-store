@@ -58,7 +58,7 @@ type ChessDb =
 
   override _.OnModelCreating(modelBuilder) =
     modelBuilder.Entity<ChessGameListItem>(fun e ->
-      e.Property(fun x -> x.Id).HasConversion(Id.ToRaw, Id.FromRaw) |> ignore
+      e.Property(_.Id).HasConversion(Id.ToRaw, Id.FromRaw) |> ignore
 
       ())
     |> ignore

@@ -10,6 +10,7 @@ open Core
 open TinyEventStore.Ef.Projections
 open TinyEventStore.Ef.Handler
 open System.Linq
+open TinyEventStore.ApplyEvents
 
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
   when 'id: equality and 'Db :> DbContext> =
@@ -66,19 +67,26 @@ type Configuration() =
     let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
     let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
-    let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate // ctx // projection.Apply
+    let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate
     let queryStreams = Queries.queryStreams<'id, 'event, 'header>
     let queryRawStreams = Queries.queryStorableStreams<'id, 'event, 'header>
+
+    let getDb (ctx: IServiceProvider) = ctx.GetService<'Db>()
 
     let applyResultToProjections serviceProvider result =
       projections |> List.iter (fun p -> p.Apply serviceProvider result)
 
     let updateEventStore2 (ctx: IServiceProvider) operationResult =
-      let db = ctx.GetService<'Db>()
+      let db = getDb ctx
       updateEventStream2 db operationResult
 
     let applyEvents (ctx: IServiceProvider) (streamId, events) =
       taskResult {
+        // assert (events |> Seq.length > 0)
+
+        if events |> Seq.length = 0 then
+          failwith "no events given"
+
         let! result = appendEvents ctx streamId events
         updateEventStore2 ctx result
         applyResultToProjections ctx result
@@ -100,8 +108,8 @@ type Configuration() =
       rehydrateLatest2 = rehydrateLatest2
       rehydrateMany = rehydrateMany
       rehydrateAll = rehydrateAll
-      rehydrate = PureStore.rehydrate zero evolve
-      getDb = fun ctx -> ctx.GetService<'Db>()
+      rehydrate = rehydrate zero evolve
+      getDb = fun ctx -> getDb ctx
       appendEvents = appendEvents
       applyCommand = applyCommand
       applyEvents = applyEvents
@@ -116,15 +124,14 @@ type Configuration() =
       saveChangesAsyncWithResult =
         fun (ctx) ->
           taskResult {
-            let db = ctx.GetService<'Db>()
+            let db = getDb ctx
             let! r = db.SaveChangesAsync()
             return r
           }
-
       saveChangesAsync =
         fun (ctx) ->
           taskResult {
-            let db = ctx.GetService<'Db>()
+            let db = getDb ctx
             let! _ = db.SaveChangesAsync()
             return ()
           }
@@ -134,7 +141,6 @@ type Configuration() =
           queryRawStreams db
       queryStreams =
         fun ctx ->
-
           let db = ctx.GetService<'Db>()
           queryStreams db
 

@@ -7,7 +7,8 @@ open TinyEventStore
 [<AbstractClass>]
 type AbstractStorableStream<'id when 'id: equality>() =
   abstract member Id: 'id with get, set
-  member val Version = Unchecked.defaultof<uint32> with get, set // TODO this is never initialized
+  member val Version = Unchecked.defaultof<uint32> with get, set // TODO: this is never initialized
+  member val IsDeleted = Unchecked.defaultof<bool> with get, set
   member val Created = Unchecked.defaultof<DateTimeOffset> with get, set
   member val Modified = Unchecked.defaultof<DateTimeOffset> with get, set
 
@@ -36,6 +37,7 @@ and [<AllowNullLiteral>] StorableCausationId() =
 
 and [<AbstractClass>] AbstractStorableEvent<'id>() =
   member val SequenceId = Unchecked.defaultof<uint32> with get, set
+  member val IsDeleted = Unchecked.defaultof<bool> with get, set
   member val EventId = Unchecked.defaultof<EventId> with get, set
   member val Version = Unchecked.defaultof<uint32> with get, set
   member val Timestamp = Unchecked.defaultof<DateTimeOffset> with get, set
@@ -64,6 +66,7 @@ and StorableEvent<'id, 'event, 'header when 'id: equality>() =
 
 type StreamChunk<'id, 'event, 'header when 'id: equality> =
   { StreamId: 'id
+    IsDeleted: bool
     FromSequenceId: uint32
     ToSequenceId: uint32
     Events: StorableEvent<'id, 'event, 'header> list }
@@ -97,6 +100,7 @@ type StreamChunk<'id, 'event, 'header when 'id: equality> =
     let events: StorableEvent<'id, 'event, 'header> list = []
 
     { StreamId = Unchecked.defaultof<'id>
+      IsDeleted = false
       FromSequenceId = 0u
       ToSequenceId = 0u
       Events = events }
@@ -122,7 +126,8 @@ module Storable =
         CausationId = causation,
         CorrelationId = result.CorrelationId,
         Data = result.Payload,
-        Header = result.Header
+        Header = result.Header,
+        IsDeleted = result.IsDeleted
       )
 
     if not (result.HasValidVersion()) then
@@ -136,7 +141,8 @@ module Storable =
         Id = result.Id,
         Version = result.Version,
         Created = result.Created,
-        Modified = result.Modified
+        Modified = result.Modified,
+        IsDeleted = result.IsDeleted
       )
 
     if not (stream.IsValid()) then
@@ -150,6 +156,7 @@ module Storable =
 
     let result: EventEnvelope<'id, 'event, 'header> =
       { SequenceId = storableEvent.SequenceId
+        IsDeleted = storableEvent.IsDeleted
         StreamId = storableEvent.StreamId
         EventId = storableEvent.EventId
         Payload = storableEvent.Data
@@ -171,6 +178,7 @@ module Storable =
     let result: Stream<'id, 'event, 'header> =
       { Id = this.Id
         Version = this.Version
+        IsDeleted = this.IsDeleted
         Created = this.Created
         Modified = this.Modified
         Events = this.Children |> Seq.map toEvent |> ResizeArray }
@@ -187,6 +195,7 @@ module Storable =
     let modified = events.Last().Timestamp
 
     { Id = streamChunk.StreamId
+      IsDeleted = streamChunk.IsDeleted
       Version = streamChunk.ToSequenceId
       Created = created
       Modified = modified

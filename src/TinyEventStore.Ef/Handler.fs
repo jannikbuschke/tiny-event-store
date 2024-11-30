@@ -7,6 +7,7 @@ open TinyEventStore
 open FsToolkit.ErrorHandling
 open Queries
 open Storables
+open TinyEventStore.HandleCommandAndEvents
 
 let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext and 'id: equality>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
@@ -16,10 +17,7 @@ let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when '
   let db = ctx.GetRequiredService<'Db>()
   let loadEvents = loadStorableStream<'id, 'event, 'header> db
 
-  fun (id: 'id) ->
-    id
-    |> loadEvents
-    |> TaskResult.map (PureStore.makeCommandHandler aggregate executeCommand)
+  fun (id: 'id) -> id |> loadEvents |> TaskResult.map (makeCommandHandler aggregate executeCommand)
 
 // creates an operation result
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
@@ -33,16 +31,29 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
     let! stream = loadStorableStream<'id, 'event, 'header> db id
 
     let result =
-      PureStore.appendEvents aggregate stream (id, events) :> OperationResult<'id, 'state, 'event, 'header>
+      appendEvents aggregate stream (id, events) :> OperationResult<'id, 'state, 'event, 'header>
 
     return result
   }
 
 open Core
 
-let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, 'header>) events =
+let updateStorableStreamAndEvents
+  (db: DbContext)
+  (stream: Stream<'id, 'event, 'header>)
+  events
+  (operationResult: OperationResult<_, _, _, _>)
+  =
   let stream = Storable.toStorableStream stream
   let dbCmd = projectToDbCommand events
+  let firstNewEvent = operationResult.New.EventsChunk.Head
+
+  if firstNewEvent.IsInitialEvent() then
+    stream.Created <- firstNewEvent.Timestamp
+
+  if operationResult.ShouldDelete then
+    stream.IsDeleted <- true
+  // here we
   let events = events |> List.map Storable.toStorableEvent
   let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   // stream is loaded beforehand, so we can use its entry
@@ -52,4 +63,4 @@ let updateStorableStreamAndEvents (db: DbContext) (stream: Stream<'id, 'event, '
   ()
 
 let updateEventStream2 (db: DbContext) (appendEventResult: OperationResult<'id, 'state, 'event, 'eventHeader>) =
-  updateStorableStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents
+  updateStorableStreamAndEvents db appendEventResult.NewStream appendEventResult.NewEvents appendEventResult

@@ -24,7 +24,7 @@ let insertRandomGames (httpContext: HttpContext) (rnd: System.Random) (amount: i
   }
 
 let testCases =
-  [ esTest "Replay an initalized game"
+  [ esTest<ChessDb> "Replay an initalized game"
     <| fun ctx ->
       taskResult {
 
@@ -33,8 +33,7 @@ let testCases =
         let httpContext = ctx.CreateHttpContext()
         let id = GameId.FromRaw 1
 
-        let i =
-          (id, [ Event.GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
+        let! i = (id, [ Event.GameCreated defaultPosition ]) |> Handler.appendEvents httpContext
 
         let store = Handler.store
         let db = store.getDb httpContext.RequestServices
@@ -61,7 +60,7 @@ let testCases =
         return ()
       }
 
-    esTest "Replay many: should restore a deleted read model row (many events)"
+    esTest<ChessDb> "Replay many: should restore a deleted read model row (many events)"
     <| fun ctx ->
       taskResult {
         // Arrange
@@ -102,7 +101,7 @@ let testCases =
         TinyEventStore.Check.expect <@ item.Id = id @>
         return ()
       }
-    esTest "replay long game"
+    esTest<ChessDb> "replay long game"
     <| fun ctx ->
       taskResult {
 

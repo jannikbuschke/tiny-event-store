@@ -8,6 +8,7 @@ open System.Linq
 open Microsoft.Extensions.DependencyInjection
 open FsToolkit.ErrorHandling
 open Core
+open TinyEventStore.ApplyEvents
 
 let queryStorableStreams<'id, 'event, 'header when 'id: equality> (db: DbContext) =
   db.Set<StorableStream<'id, 'event, 'header>>().AsNoTracking()
@@ -31,7 +32,7 @@ let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) 
           let stream =
             { Stream.Id = id
               Version = 0u
-              // Created = DateTimeOffset.UtcNow
+              IsDeleted = false
               Created = DateTimeOffset.MinValue
               Modified = DateTimeOffset.MinValue
               Events = ResizeArray([]) }
@@ -115,6 +116,7 @@ let loadEventsChunk<'state, 'id, 'event, 'header when 'id: equality>
 
         let stream =
           { StreamId = streamId
+            IsDeleted = false
             Events = events
             FromSequenceId = events.Head.SequenceId
             ToSequenceId = events.Last().SequenceId }
@@ -147,7 +149,7 @@ let efRehydrate2<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id
 
   taskResult {
     let! stream = loadEvents id
-    let state = PureStore.rehydrate zero evolve stream
+    let state = rehydrate zero evolve stream
     return state, stream
   }
 
@@ -165,7 +167,7 @@ let rehydrateMany<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'i
 
     return
       streams
-      |> Seq.map (fun stream -> (PureStore.rehydrate zero evolve stream), stream)
+      |> Seq.map (fun stream -> (rehydrate zero evolve stream), stream)
       |> Seq.toList
   }
 
@@ -181,6 +183,6 @@ let rehydrateAll<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id
 
     return
       streams
-      |> Seq.map (fun stream -> (PureStore.rehydrate zero evolve stream), stream)
+      |> Seq.map (fun stream -> (rehydrate zero evolve stream), stream)
       |> Seq.toList
   }

@@ -75,6 +75,8 @@ let appendEvents (ctx: HttpContext) (streamId: Id, events: Event list) =
   taskResult {
     let events = events |> List.mapi (fun _ e -> e, Dictionary())
     let! result = store.applyEvents ctx.RequestServices (streamId, events)
+    // let db = store.getDb ctx.RequestServices
+    // db.ChangeTracker.DebugView.ShortView |> printfn "entities %A"
     let! r2 = store.saveChangesAsyncWithResult ctx.RequestServices
     return ()
   }

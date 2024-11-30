@@ -7,6 +7,7 @@ open TinyEventStore
 open TinyEventStore.Ef.Storables
 open Queries
 open Core
+open TinyEventStore.ApplyEvents
 
 type IEfProjection<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext> =
   abstract member Apply: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
@@ -37,6 +38,7 @@ let applyEvents
           Id = streamId
           Created = DateTimeOffset.MinValue
           Modified = DateTimeOffset.MinValue
+          IsDeleted = false
           Events = [||] }
 
       originalAggregate.zero, stream
@@ -44,7 +46,7 @@ let applyEvents
   let newEvents = (streamChunk.Events |> List.map Storable.toEvent)
 
   let result =
-    PureStore.applyEvents originalAggregate state stream newEvents :> OperationResult<'id, 'state, 'event, 'header>
+    applyEvents originalAggregate state stream newEvents :> OperationResult<'id, 'state, 'event, 'header>
 
   result
 
@@ -130,7 +132,8 @@ let updateDerived
   let entry = db.Entry(derived)
   // this is not explicit, should be refactored mayb
   entry.CurrentValues.Item "Id" <- commandResult.NewStream.Id
-  let dbCmd = projectToDbCommand commandResult.NewEvents
+  // let dbCmd = projectToDbCommand commandResult.NewEvents
+  let dbCmd = getDefaultDbOperation commandResult
   let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   insertOrUpdate derived
   ()

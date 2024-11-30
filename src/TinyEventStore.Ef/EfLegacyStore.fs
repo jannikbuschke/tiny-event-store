@@ -1,5 +1,6 @@
 module TinyEventStore.Ef.LegacyStore
 
+open TinyEventStore.ApplyEvents
 open System
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
@@ -41,7 +42,7 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     rehydrateLatest2 = rehydrateLatest2
     rehydrateMany = rehydrateMany
     rehydrateAll = rehydrateAll
-    rehydrate = PureStore.rehydrate zero evolve
+    rehydrate = rehydrate zero evolve
     getDb = fun ctx -> ctx.GetService<'Db>()
     applyOperationResultToProjections = fun _ _ -> ()
     appendEvents = appendEvents

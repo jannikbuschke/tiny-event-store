@@ -7,6 +7,7 @@ open Microsoft.AspNetCore.Http
 open Microsoft.EntityFrameworkCore
 open Serilog
 open System.Threading.Tasks
+open Microsoft.Extensions.Logging
 
 type TestContext =
   { Services: ServiceProvider
@@ -22,7 +23,11 @@ let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
   // let variables = System.Environment.GetEnvironmentVariables()
   let connectionString = System.Environment.GetEnvironmentVariable("ConnectionString")
 
-  services.AddDbContext<'db>(fun x -> x.UseNpgsql(connectionString.Replace("{dbName}", dbName)) |> ignore)
+  services.AddDbContext<'db>(fun x ->
+    x.LogTo((fun v -> printfn "%s" v), LogLevel.Error).EnableSensitiveDataLogging()
+    |> ignore
+
+    x.UseNpgsql(connectionString.Replace("{dbName}", dbName)) |> ignore)
   |> ignore
 
   Log.Logger <-

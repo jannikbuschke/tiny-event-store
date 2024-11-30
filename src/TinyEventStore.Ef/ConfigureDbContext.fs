@@ -3,7 +3,7 @@ module TinyEventStore.Ef.DbContext
 open System.Runtime.CompilerServices
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
-open FsToolkit.ErrorHandling
+// open FsToolkit.ErrorHandling
 open Core
 open Json
 open TinyEventStore.Ef.Storables

@@ -12,6 +12,7 @@ type Version = uint
 type Stream<'id, 'event, 'header> =
   { Id: 'id
     Version: Version
+    IsDeleted: bool
     Created: DateTimeOffset
     Modified: DateTimeOffset
     Events: EventEnvelope<'id, 'event, 'header> ICollection }
@@ -23,6 +24,7 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
   { SequenceId: uint32
     StreamId: 'streamId
     Payload: 'event
+    IsDeleted: bool
     EventId: EventId
     CausationId: CausationId option
     // TODO: this could be a string to allow for more flexibility
@@ -36,6 +38,7 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
   static member Create(streamId: 'streamId, payload: 'event, header: 'header, eventNumber: Version) =
     { SequenceId = 0ul
       StreamId = streamId
+      IsDeleted = false
       Payload = payload
       EventId = EventId.New()
       CausationId = None
@@ -54,6 +57,7 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
     { SequenceId = 0ul
       StreamId = command.StreamId
       Payload = payload
+      IsDeleted = false
       EventId = EventId.New()
       CausationId = Some(CausationId.CommandId command.CommandId)
       CorrelationId = correlationId
@@ -126,6 +130,7 @@ type OperationResult<'id, 'state, 'event, 'header> =
   abstract New: StateChunk<'id, 'state, 'event, 'header>
   abstract Previous: StateHead<'id, 'state, 'event, 'header>
   abstract ShouldDelete: bool
+  abstract IsDeleted: bool
   abstract NewState: 'state
   abstract NewStream: Stream<'id, 'event, 'header>
   abstract NewEvents: EventEnvelope<'id, 'event, 'header> list
@@ -136,6 +141,7 @@ type OperationResult<'id, 'state, 'event, 'header> =
 type AppendEventsResult<'id, 'state, 'event, 'header> =
   { NewState: 'state
     NewStream: Stream<'id, 'event, 'header>
+    IsDeleted: bool
     NewEvents: EventEnvelope<'id, 'event, 'header> list
     PreviousState: 'state
     PreviousStream: Stream<'id, 'event, 'header>
@@ -157,6 +163,7 @@ type AppendEventsResult<'id, 'state, 'event, 'header> =
         Events = this.NewEvents }
 
     member this.ShouldDelete = this.ShouldDelete
+    member this.IsDeleted = this.IsDeleted
     member this.NewEvents = this.NewEvents
     member this.NewState = this.NewState
     member this.NewStream = this.NewStream
@@ -172,6 +179,7 @@ type CommandResult<'id, 'state, 'event, 'header, 'sideEffect> =
     PreviousState: 'state
     PreviousStream: Stream<'id, 'event, 'header>
     PreviousEvents: EventEnvelope<'id, 'event, 'header> list
+    IsDeleted: bool
     ShouldDelete: bool }
 
   interface OperationResult<'id, 'state, 'event, 'header> with
@@ -192,6 +200,7 @@ type CommandResult<'id, 'state, 'event, 'header, 'sideEffect> =
     member this.PreviousState = this.PreviousState
     member this.PreviousStream = this.NewStream
     member this.ShouldDelete = this.ShouldDelete
+    member this.IsDeleted = this.IsDeleted
 
 type Decision<'event, 'header, 'sideEffect> = Result<('event * 'header) list * 'sideEffect list, string>
 
