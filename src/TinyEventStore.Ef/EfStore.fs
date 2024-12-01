@@ -11,10 +11,13 @@ open TinyEventStore.Ef.Projections
 open TinyEventStore.Ef.Handler
 open System.Linq
 open TinyEventStore.ApplyEvents
+open Storables
 
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
   when 'id: equality and 'Db :> DbContext> =
-  { prepare:
+  { StreamSet: IServiceProvider -> DbSet<StorableStream<'id, 'event, 'header>>
+    EventSet: IServiceProvider -> DbSet<StorableEvent<'id, 'event, 'header>>
+    prepare:
       IServiceProvider
         -> 'id
         -> TaskResult<
@@ -102,7 +105,15 @@ type Configuration() =
         return result
       }
 
-    { prepare = prepare
+    { StreamSet =
+        fun ctx ->
+          let db = getDb ctx
+          db.Set<StorableStream<'id, 'event, 'header>>()
+      EventSet =
+        fun ctx ->
+          let db = getDb ctx
+          db.Set<StorableEvent<'id, 'event, 'header>>()
+      prepare = prepare
       applyOperationResultToProjections = applyResultToProjections
       aggregate = aggregate
       rehydrateLatest2 = rehydrateLatest2

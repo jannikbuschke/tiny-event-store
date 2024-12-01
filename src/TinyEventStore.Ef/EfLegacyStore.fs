@@ -34,7 +34,9 @@ let efCreate<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect
     let db = ctx.GetService<'Db>()
     updateEventStream2 db operationResult
 
-  { prepare = prepare
+  { StreamSet = fun ctx -> failwith "not implemented"
+    EventSet = fun ctx -> failwith "not implemented"
+    prepare = prepare
     aggregate =
       { zero = zero
         evolve = evolve
