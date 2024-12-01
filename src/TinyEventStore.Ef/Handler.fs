@@ -8,6 +8,8 @@ open FsToolkit.ErrorHandling
 open Queries
 open Storables
 open TinyEventStore.HandleCommandAndEvents
+open Core
+open System.Linq
 
 let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when 'Db :> DbContext and 'id: equality>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
@@ -36,7 +38,6 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
     return result
   }
 
-open Core
 
 let updateStorableStreamAndEvents
   (db: DbContext)
@@ -53,6 +54,8 @@ let updateStorableStreamAndEvents
 
   if operationResult.ShouldDelete then
     stream.IsDeleted <- true
+
+  stream.Modified <- operationResult.New.EventsChunk.Last().Timestamp
   // here we
   let events = events |> List.map Storable.toStorableEvent
   let insertOrUpdate x = mapToEfContextOperation db dbCmd x
