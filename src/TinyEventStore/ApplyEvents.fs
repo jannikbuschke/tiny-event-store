@@ -24,6 +24,8 @@ let rehydrate<'id, 'state, 'event, 'header>
   =
   rehydrateEvents zero evolve stream.Events
 
+open System.Linq
+
 let applyEvents<'id, 'state, 'event, 'header, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (oldState: 'state)
@@ -44,6 +46,7 @@ let applyEvents<'id, 'state, 'event, 'header, 'sideEffect>
   let newStream =
     { oldStreamState with
         Events = combinedEvents |> ResizeArray
+        Modified = if combinedEvents.Length > 0 then combinedEvents.Last().Timestamp else oldStreamState.Modified
         Version = lastEvent.Version }
 
   let newStateChunk =
