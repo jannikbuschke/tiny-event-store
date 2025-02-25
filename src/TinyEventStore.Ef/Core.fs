@@ -45,7 +45,7 @@ let getDefaultDbOperation (operationResult: OperationResult<_, _, _, _>) =
   | IsNewAndshouldDelete -> DbSideEffect.DoNothing
   | IsNew -> DbSideEffect.Create
   | IsDeleted ->
-    printfn "is deleted, do nothing"
+    // printfn "is deleted, do nothing"
     DbSideEffect.DoNothing
   | ShouldDelete -> DbSideEffect.Delete
   | ShouldUpdate -> DbSideEffect.Update

@@ -10,6 +10,12 @@ open FsToolkit.ErrorHandling
 open Core
 open TinyEventStore.ApplyEvents
 
+let queryStorableEvents<'id, 'event, 'header when 'id: equality> (db: DbContext) =
+  db.Set<StorableEvent<'id, 'event, 'header>>().AsNoTracking()
+
+let queryEvents<'id, 'event, 'header when 'id: equality> (db: DbContext) =
+  (queryStorableEvents<'id, 'event, 'header> db).Select(Storable.toEvent)
+
 let queryStorableStreams<'id, 'event, 'header when 'id: equality> (db: DbContext) =
   db.Set<StorableStream<'id, 'event, 'header>>().AsNoTracking()
 

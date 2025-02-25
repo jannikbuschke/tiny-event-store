@@ -50,7 +50,11 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     saveChangesAsync: IServiceProvider -> TaskResult<unit, string>
     saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string>
     queryStreams: IServiceProvider -> IQueryable<Stream<'id, 'event, 'header>>
-    queryRawStreams: IServiceProvider -> IQueryable<Storables.StorableStream<'id, 'event, 'header>> }
+    queryRawStreams: IServiceProvider -> IQueryable<Storables.StorableStream<'id, 'event, 'header>>
+
+    queryEvents: IServiceProvider -> IQueryable<EventEnvelope<'id, 'event, 'header>>
+    queryRawEvents: IServiceProvider -> IQueryable<Storables.StorableEvent<'id, 'event, 'header>>
+    }
 
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
@@ -71,8 +75,12 @@ type Configuration() =
     let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
     let replayProjection = rerunProject<'id, 'state, 'event, 'header, 'Db> aggregate
+
     let queryStreams = Queries.queryStreams<'id, 'event, 'header>
     let queryRawStreams = Queries.queryStorableStreams<'id, 'event, 'header>
+
+    let queryEvents = Queries.queryEvents<'id, 'event, 'header>
+    let queryRawEvents = Queries.queryStorableEvents<'id, 'event, 'header>
 
     let getDb (ctx: IServiceProvider) = ctx.GetService<'Db>()
 
@@ -146,6 +154,14 @@ type Configuration() =
             let! _ = db.SaveChangesAsync()
             return ()
           }
+      queryRawEvents =
+        fun ctx ->
+          let db = ctx.GetService<'Db>()
+          queryRawEvents db
+      queryEvents =
+        fun ctx ->
+          let db = ctx.GetService<'Db>()
+          queryEvents db
       queryRawStreams =
         fun ctx ->
           let db = ctx.GetService<'Db>()
