@@ -27,7 +27,7 @@ type Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 
     replayProjection: IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
     rehydrateLatest2: 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrate: 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
-    rehydrateAtVersion: ('id * uint64) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrateAtVersion: ('id * uint32) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     rehydrateAll: TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     getDb: 'Db
@@ -49,7 +49,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
   when 'id: equality and 'Db :> DbContext> =
   { StreamSet: IServiceProvider -> DbSet<StorableStream<'id, 'event, 'header>>
     EventSet: IServiceProvider -> DbSet<StorableEvent<'id, 'event, 'header>>
-    getStore: IServiceProvider -> Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db>
+    // getStore: IServiceProvider -> Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db>
     prepare:
       IServiceProvider
         -> 'id
