@@ -10,7 +10,6 @@ open Core
 open TinyEventStore.Ef.Projections
 open TinyEventStore.Ef.Handler
 open System.Linq
-open TinyEventStore.ApplyEvents
 open Storables
 
 type Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
@@ -50,6 +49,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
   when 'id: equality and 'Db :> DbContext> =
   { StreamSet: IServiceProvider -> DbSet<StorableStream<'id, 'event, 'header>>
     EventSet: IServiceProvider -> DbSet<StorableEvent<'id, 'event, 'header>>
+    getStore: IServiceProvider -> Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db>
     prepare:
       IServiceProvider
         -> 'id
@@ -66,7 +66,7 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     replayProjection: IServiceProvider -> IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrate: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
-    rehydrateAtVersion: IServiceProvider -> ('id * uint64) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrateAtVersion: IServiceProvider -> ('id * uint32) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: IServiceProvider -> 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     rehydrateAll: IServiceProvider -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     // rehydrate: Stream<'id, 'event, 'header> -> 'state
@@ -104,6 +104,7 @@ type Configuration() =
       prepare<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit, 'Db> aggregate decide
 
     let rehydrateLatest2 = efRehydrate2<'id, 'state, 'event, 'header, 'Db> zero evolve
+    let rehydrate = efRehydrateAtVersion<'id, 'state, 'event, 'header, 'Db> zero evolve
     let rehydrateMany = rehydrateMany<'id, 'state, 'event, 'header, 'Db> zero evolve
     let rehydrateAll = rehydrateAll<'id, 'state, 'event, 'header, 'Db> zero evolve
     let appendEvents = efAppendEvents<'id, 'state, 'event, 'header, 'Db> aggregate
@@ -159,7 +160,8 @@ type Configuration() =
       aggregate = aggregate
       rehydrateLatest2 = rehydrateLatest2
       rehydrate = rehydrateLatest2
-      rehydrateAtVersion = failwith ""
+      rehydrateAtVersion = rehydrate
+
       rehydrateMany = rehydrateMany
       rehydrateAll = rehydrateAll
       // rehydrate = rehydrate zero evolve

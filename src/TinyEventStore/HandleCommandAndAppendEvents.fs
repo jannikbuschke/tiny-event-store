@@ -4,7 +4,6 @@ open TinyEventStore.ApplyEvents
 open FsToolkit.ErrorHandling
 open TinyEventStore
 
-
 let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (currentState: Stream<'id, 'event, 'header>)

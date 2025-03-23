@@ -7,10 +7,7 @@ open FsToolkit.ErrorHandling
 
 type Version = uint
 
-type StreamVersionRef<'id> = {
-      Id: 'id
-      Version : uint64
-}
+type StreamVersionRef<'id> = { Id: 'id; Version: uint64 }
 
 /// <summary> A container for Events </summary>
 [<CLIMutable>]
@@ -32,7 +29,6 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
     IsDeleted: bool
     EventId: EventId
     CausationId: CausationId option
-    // TODO: this could be a string to allow for more flexibility
     CorrelationId: CorrelationId option
     Version: Version
     Timestamp: DateTimeOffset
@@ -222,10 +218,10 @@ type LoadStreamContainer<'id, 'event, 'header> = 'id -> TaskResult<Stream<'id, '
 type RehydrateFn<'id, 'state, 'event, 'header> =
   'state -> Evolve<'id, 'state, 'event, 'header> -> Stream<'id, 'event, 'header> -> 'state
 
-type ImpureStore<'id, 'state, 'command, 'event, 'header, 'sideEffect> =
-  { decide: Decide<'state, 'command, 'event, 'header, 'sideEffect>
-    append: EventEnvelope<'id, 'event, 'header> -> TaskResult<unit, string>
-    rehydrate: RehydrateFn<'id, 'state, 'event, 'header> }
+// type ImpureStore<'id, 'state, 'command, 'event, 'header, 'sideEffect> =
+//   { decide: Decide<'state, 'command, 'event, 'header, 'sideEffect>
+//     append: EventEnvelope<'id, 'event, 'header> -> TaskResult<unit, string>
+//     rehydrate: RehydrateFn<'id, 'state, 'event, 'header> }
 
 type Aggregate<'id, 'state, 'event, 'header> =
   { zero: 'state
