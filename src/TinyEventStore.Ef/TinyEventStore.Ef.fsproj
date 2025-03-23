@@ -52,5 +52,5 @@
         <ProjectReference Include="..\TinyEventStore\TinyEventStore.fsproj"/>
     </ItemGroup>
 
-    <Import Project="..\..\.paket\Paket.Restore.targets"/>
+<!--    <Import Project="..\..\.paket\Paket.Restore.targets"/>-->
 </Project>
