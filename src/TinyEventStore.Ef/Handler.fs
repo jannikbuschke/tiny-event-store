@@ -19,7 +19,10 @@ let prepare<'id, 'state, 'command, 'ch, 'event, 'header, 'sideEffect, 'Db when '
   let db = ctx.GetRequiredService<'Db>()
   let loadEvents = loadStorableStream<'id, 'event, 'header> db
 
-  fun (id: 'id) -> id |> loadEvents |> TaskResult.map (makeCommandHandler aggregate executeCommand)
+  fun (id: 'id) ->
+    (id, None)
+    |> loadEvents
+    |> TaskResult.map (makeCommandHandler aggregate executeCommand)
 
 // creates an operation result
 let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
@@ -30,7 +33,7 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
   =
   taskResult {
     let db = ctx.GetRequiredService<'Db>()
-    let! stream = loadStorableStream<'id, 'event, 'header> db id
+    let! stream = loadStorableStream<'id, 'event, 'header> db (id, None)
 
     let result =
       appendEvents aggregate stream (id, events) :> OperationResult<'id, 'state, 'event, 'header>

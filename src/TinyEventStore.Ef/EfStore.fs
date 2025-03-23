@@ -13,6 +13,39 @@ open System.Linq
 open TinyEventStore.ApplyEvents
 open Storables
 
+type Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
+  when 'id: equality and 'Db :> DbContext> =
+  { StreamSet: DbSet<StorableStream<'id, 'event, 'header>>
+    EventSet: DbSet<StorableEvent<'id, 'event, 'header>>
+    prepare:
+      'id
+        -> TaskResult<
+          CommandEnvelope<'id, 'command, 'commandHeader>
+            -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>,
+          string
+         >
+    appendEvents: 'id -> ('event * 'header) list -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
+    replayProjection: IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
+    rehydrateLatest2: 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrate: 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrateAtVersion: ('id * uint64) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrateMany: 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
+    rehydrateAll: TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
+    getDb: 'Db
+    updateEventStore2: OperationResult<'id, 'state, 'event, 'header> -> unit
+    applyOperationResultToProjections: OperationResult<'id, 'state, 'event, 'header> -> unit
+    applyCommand:
+      ('id * CommandEnvelope<'id, 'command, 'commandHeader>)
+        -> TaskResult<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>
+    applyEvents: 'id * ('event * 'header) list -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
+    aggregate: Aggregate<'id, 'state, 'event, 'header>
+    saveChangesAsync: TaskResult<unit, string>
+    saveChangesAsyncWithResult: TaskResult<int, string>
+    queryStreams: IQueryable<Stream<'id, 'event, 'header>>
+    queryRawStreams: IQueryable<Storables.StorableStream<'id, 'event, 'header>>
+    queryEvents: IQueryable<EventEnvelope<'id, 'event, 'header>>
+    queryRawEvents: IQueryable<Storables.StorableEvent<'id, 'event, 'header>> }
+
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
   when 'id: equality and 'Db :> DbContext> =
   { StreamSet: IServiceProvider -> DbSet<StorableStream<'id, 'event, 'header>>
@@ -32,9 +65,11 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     replayProjection: IServiceProvider -> IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
     rehydrateLatest2: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrate: IServiceProvider -> 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
+    rehydrateAtVersion: IServiceProvider -> ('id * uint64) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
     rehydrateMany: IServiceProvider -> 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
     rehydrateAll: IServiceProvider -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
-    rehydrate: Stream<'id, 'event, 'header> -> 'state
+    // rehydrate: Stream<'id, 'event, 'header> -> 'state
     getDb: IServiceProvider -> 'Db
     updateEventStore2: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
     applyOperationResultToProjections: IServiceProvider -> OperationResult<'id, 'state, 'event, 'header> -> unit
@@ -51,10 +86,8 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
     saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string>
     queryStreams: IServiceProvider -> IQueryable<Stream<'id, 'event, 'header>>
     queryRawStreams: IServiceProvider -> IQueryable<Storables.StorableStream<'id, 'event, 'header>>
-
     queryEvents: IServiceProvider -> IQueryable<EventEnvelope<'id, 'event, 'header>>
-    queryRawEvents: IServiceProvider -> IQueryable<Storables.StorableEvent<'id, 'event, 'header>>
-    }
+    queryRawEvents: IServiceProvider -> IQueryable<Storables.StorableEvent<'id, 'event, 'header>> }
 
 type Configuration() =
   static member Configure<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'Db
@@ -125,9 +158,11 @@ type Configuration() =
       applyOperationResultToProjections = applyResultToProjections
       aggregate = aggregate
       rehydrateLatest2 = rehydrateLatest2
+      rehydrate = rehydrateLatest2
+      rehydrateAtVersion = failwith ""
       rehydrateMany = rehydrateMany
       rehydrateAll = rehydrateAll
-      rehydrate = rehydrate zero evolve
+      // rehydrate = rehydrate zero evolve
       getDb = fun ctx -> getDb ctx
       appendEvents = appendEvents
       applyCommand = applyCommand

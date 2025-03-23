@@ -7,6 +7,11 @@ open FsToolkit.ErrorHandling
 
 type Version = uint
 
+type StreamVersionRef<'id> = {
+      Id: 'id
+      Version : uint64
+}
+
 /// <summary> A container for Events </summary>
 [<CLIMutable>]
 type Stream<'id, 'event, 'header> =

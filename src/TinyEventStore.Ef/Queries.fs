@@ -22,16 +22,33 @@ let queryStorableStreams<'id, 'event, 'header when 'id: equality> (db: DbContext
 let queryStreams<'id, 'event, 'header when 'id: equality> (db: DbContext) =
   (queryStorableStreams<'id, 'event, 'header> db).Select(Storable.toStream)
 
-let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id) =
+let loadStream (db: DbContext) (id, version) =
+  match version with
+  | None ->
+    db
+      .Set<StorableStream<'id, 'event, 'header>>()
+      // ORDER children by
+      .Include(fun x -> x.Children)
+      .AsNoTracking()
+      .SingleOrDefaultAsync(fun x -> x.Id = id)
+  | Some version ->
+    db
+      .Set<StorableStream<'id, 'event, 'header>>()
+      // ORDER children by
+      .Include(fun x -> x.Children.OrderBy(_.Version).Where(fun c -> c.Version <= version))
+      .AsNoTracking()
+      .SingleOrDefaultAsync(fun x -> x.Id = id)
+
+let loadStorableStream<'id, 'event, 'header when 'id: equality> (db: DbContext) (id: 'id, version) =
   task {
     try
-      let! stream =
-        db
-          .Set<StorableStream<'id, 'event, 'header>>()
-          // ORDER children by
-          .Include(fun x -> x.Children)
-          .AsNoTracking()
-          .SingleOrDefaultAsync(fun x -> x.Id = id)
+      let! stream = loadStream db (id, version)
+      // db
+      //   .Set<StorableStream<'id, 'event, 'header>>()
+      //   // ORDER children by
+      //   .Include(fun x -> x.Children)
+      //   .AsNoTracking()
+      //   .SingleOrDefaultAsync(fun x -> x.Id = id)
 
       let stream: Stream<'id, 'event, 'header> =
         if box stream = null then
@@ -154,7 +171,23 @@ let efRehydrate2<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id
   let loadEvents = loadStorableStream<'id, 'event, 'header> db
 
   taskResult {
-    let! stream = loadEvents id
+    let! stream = loadEvents (id, None)
+    let state = rehydrate zero evolve stream
+    return state, stream
+  }
+
+let efRehydrateAtVersion<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and 'id: equality>
+  (zero: 'state)
+  (evolve: Evolve<'id, 'state, 'event, 'header>)
+  (ctx: IServiceProvider)
+  (id: 'id, version)
+  // : TaskResult<('state) * Stream<'id, 'event, 'header>, string>
+  =
+  let db = ctx.GetRequiredService<'Db>()
+  let loadEvents = loadStorableStream<'id, 'event, 'header> db
+
+  taskResult {
+    let! stream = loadEvents (id, Some version)
     let state = rehydrate zero evolve stream
     return state, stream
   }
