@@ -29,6 +29,7 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
     IsDeleted: bool
     EventId: EventId
     CausationId: CausationId option
+    // can be removed
     CorrelationId: CorrelationId option
     Version: Version
     Timestamp: DateTimeOffset
@@ -48,12 +49,25 @@ and [<CLIMutable>] EventEnvelope<'streamId, 'event, 'header> =
       Timestamp = DateTimeOffset.UtcNow
       Header = header }
 
+  static member Create
+    (streamId: 'streamId, payload: 'event, header: 'header, causationId: CausationId option, eventNumber: Version) =
+    { SequenceId = 0ul
+      StreamId = streamId
+      IsDeleted = false
+      Payload = payload
+      EventId = EventId.New()
+      CausationId = causationId
+      CorrelationId = None
+      Version = eventNumber
+      Timestamp = DateTimeOffset.UtcNow
+      Header = header }
+
   static member createEventMetadata
-    (payload, header, command: CommandEnvelope<'streamId, 'command, 'commandHeader>, eventNumber, correlationId) : EventEnvelope<
-                                                                                                                     'streamId,
-                                                                                                                     'event,
-                                                                                                                     'header
-                                                                                                                    >
+    (payload,
+     header,
+     command: CommandEnvelope<'streamId, 'command, 'commandHeader>,
+     eventNumber,
+     correlationId) : EventEnvelope< 'streamId, 'event, 'header >
     =
     { SequenceId = 0ul
       StreamId = command.StreamId
@@ -208,7 +222,7 @@ type Decision<'event, 'header, 'sideEffect> = Result<('event * 'header) list * '
 type PureDecide<'id, 'state, 'command, 'cHeader, 'event, 'header, 'sideEffect> =
   'state -> CommandEnvelope<'id, 'command, 'cHeader> -> Decision<'event, 'header, 'sideEffect>
 
-type Decide<'state, 'command, 'event, 'header, 'sideEffect> =
+type LegacyDecide<'state, 'command, 'event, 'header, 'sideEffect> =
   'state -> 'command -> Task<Result<('event * 'header) list * 'sideEffect list, string>>
 
 type Evolve<'id, 'state, 'event, 'header> = 'state -> EventEnvelope<'id, 'event, 'header> -> 'state

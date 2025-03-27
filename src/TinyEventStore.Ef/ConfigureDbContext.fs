@@ -3,10 +3,10 @@ module TinyEventStore.Ef.DbContext
 open System.Runtime.CompilerServices
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
-// open FsToolkit.ErrorHandling
 open Core
 open Json
 open TinyEventStore.Ef.Storables
+open Microsoft.EntityFrameworkCore.Design
 
 let configureEventEnvelopeWithConversion<'id, 'rawId, 'event, 'eventDto, 'header, 'headerDto>
   (modelBuilder: ModelBuilder)
@@ -245,6 +245,58 @@ type ModelBuilderExtensions() =
     (property: Metadata.Builders.PropertyBuilder<'id>, idConverter: IdConverter<'id, 'idRaw>)
     =
     property.HasConversion(idConverter |> fst, idConverter |> snd) |> ignore
+
+  [<Extension>]
+  static member AddEventStore<'id, 'idRaw, 'tDiscriminator when 'id: equality>
+    (ty: ModelBuilder, idConverter: IdConverter<'id, 'idRaw>, name, fn)
+    =
+    ty.Entity<AbstractStorableStream<'id>>(fun entity ->
+      entity.HasKey(fun x -> x.Id :> obj) |> ignore
+
+      entity.ToTable(name + "_streams") |> ignore
+
+      entity
+        .Property(fun x -> x.Id)
+        .HasConversion(idConverter |> fst, idConverter |> snd)
+      |> ignore)
+    |> ignore
+
+    ty.Entity<AbstractStorableEvent<'id>>(fun entity ->
+      entity.HasKey(fun x -> x.SequenceId :> obj) |> ignore
+
+      entity
+        .Property(fun x -> x.EventId)
+        .IsRequired(true)
+        .HasConversion(EventId.ToRawValue, EventId.FromRawValue)
+      |> ignore
+
+      entity.ToTable(name + "_events") |> ignore
+      entity.OwnsOne(fun x -> x.CausationId) |> ignore
+
+      let toRaw = Option.map CorrelationId.ToRawValue >> Option.toNullable
+
+      let fromRaw = Option.ofNullable >> Option.map CorrelationId.FromRawValue
+
+      entity.Property(fun x -> x.CorrelationId).HasConversion(toRaw, fromRaw)
+      |> ignore
+
+      entity.Ignore(fun x -> x.CorrelationId :> obj) |> ignore
+
+      ())
+    |> ignore
+
+    let streamEntity =
+      ty
+        .Entity<AbstractStorableStream<'id>>()
+        .HasDiscriminator<'tDiscriminator>("Type")
+
+    let eventEntity =
+      ty
+        .Entity<AbstractStorableEvent<'id>>()
+        .HasDiscriminator<'tDiscriminator>("Type")
+
+    fn (ConfigureStream<'id, 'idRaw, 'tDiscriminator>(ty, streamEntity, eventEntity))
+    (ty.Entity<AbstractStorableStream<'id>>()), (ty.Entity<AbstractStorableEvent<'id>>())
 
   [<Extension>]
   static member AddMultiEventStore2<'id, 'idRaw, 'tDiscriminator when 'id: equality>

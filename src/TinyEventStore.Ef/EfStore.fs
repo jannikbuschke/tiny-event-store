@@ -12,39 +12,7 @@ open TinyEventStore.Ef.Handler
 open System.Linq
 open Storables
 
-type Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
-  when 'id: equality and 'Db :> DbContext> =
-  { StreamSet: DbSet<StorableStream<'id, 'event, 'header>>
-    EventSet: DbSet<StorableEvent<'id, 'event, 'header>>
-    prepare:
-      'id
-        -> TaskResult<
-          CommandEnvelope<'id, 'command, 'commandHeader>
-            -> Result<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>,
-          string
-         >
-    appendEvents: 'id -> ('event * 'header) list -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
-    replayProjection: IEfProjection<'id, 'state, 'event, 'header, 'Db> -> TaskResult<unit, string>
-    rehydrateLatest2: 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
-    rehydrate: 'id -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
-    rehydrateAtVersion: ('id * uint32) -> TaskResult<'state * Stream<'id, 'event, 'header>, string>
-    rehydrateMany: 'id list -> TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
-    rehydrateAll: TaskResult<('state * Stream<'id, 'event, 'header>) list, string>
-    getDb: 'Db
-    updateEventStore2: OperationResult<'id, 'state, 'event, 'header> -> unit
-    applyOperationResultToProjections: OperationResult<'id, 'state, 'event, 'header> -> unit
-    applyCommand:
-      ('id * CommandEnvelope<'id, 'command, 'commandHeader>)
-        -> TaskResult<CommandResult<'id, 'state, 'event, 'header, 'sideEffect>, string>
-    applyEvents: 'id * ('event * 'header) list -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
-    aggregate: Aggregate<'id, 'state, 'event, 'header>
-    saveChangesAsync: TaskResult<unit, string>
-    saveChangesAsyncWithResult: TaskResult<int, string>
-    queryStreams: IQueryable<Stream<'id, 'event, 'header>>
-    queryRawStreams: IQueryable<Storables.StorableStream<'id, 'event, 'header>>
-    queryEvents: IQueryable<EventEnvelope<'id, 'event, 'header>>
-    queryRawEvents: IQueryable<Storables.StorableEvent<'id, 'event, 'header>> }
-
+type Subscription<'id,'event,'header when 'id : equality> = (IServiceProvider -> StorableEvent<'id, 'event, 'header> -> unit )
 type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
   when 'id: equality and 'Db :> DbContext> =
   { StreamSet: IServiceProvider -> DbSet<StorableStream<'id, 'event, 'header>>
@@ -81,9 +49,14 @@ type EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect
       IServiceProvider
         -> 'id * ('event * 'header) list
         -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
+    applyEvents2:
+      IServiceProvider
+        -> 'id * ('event * 'header * CausationId option) list
+        -> TaskResult<OperationResult<'id, 'state, 'event, 'header>, string>
     aggregate: Aggregate<'id, 'state, 'event, 'header>
     saveChangesAsync: IServiceProvider -> TaskResult<unit, string>
     saveChangesAsyncWithResult: IServiceProvider -> TaskResult<int, string>
+    subscribe: Subscription<'id, 'event,'header> -> unit
     queryStreams: IServiceProvider -> IQueryable<Stream<'id, 'event, 'header>>
     queryRawStreams: IServiceProvider -> IQueryable<Storables.StorableStream<'id, 'event, 'header>>
     queryEvents: IServiceProvider -> IQueryable<EventEnvelope<'id, 'event, 'header>>
@@ -99,6 +72,7 @@ type Configuration() =
     ) : EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit, 'Db> =
     let zero = aggregate.zero
     let evolve = aggregate.evolve
+    let subscribers = ResizeArray<Subscription<'id,'event,'header>>()
 
     let prepare =
       prepare<'id, 'state, 'command, 'commandHeader, 'event, 'header, unit, 'Db> aggregate decide
@@ -138,6 +112,19 @@ type Configuration() =
         return result
       }
 
+    let applyEvents (ctx: IServiceProvider) (streamId, events) =
+      taskResult {
+        // assert (events |> Seq.length > 0)
+
+        if events |> Seq.length = 0 then
+          failwith "no events given"
+
+        let! result = appendEvents ctx streamId events
+        updateEventStore2 ctx result
+        applyResultToProjections ctx result
+        return result
+      }
+
     let applyCommand serviceProvider (id, command) =
       taskResult {
         let! run = prepare serviceProvider id
@@ -146,6 +133,35 @@ type Configuration() =
         applyResultToProjections serviceProvider result
         return result
       }
+    let saveChangesAsyncWithResult(ctx)=
+          taskResult {
+            let db = getDb ctx
+            // let newObjects = db.ChangeTracker
+            //                    .Entries()
+            //                   .Where(fun x -> x.State=EntityState.Added)
+            //                   .ToList()
+            let newEvents = db.ChangeTracker
+                              .Entries<StorableEvent<'id,'event,'header>>()
+        //                       .OfType<EventEnvelope<'id, 'event, 'header>>()
+                              .Where(fun x -> x.State=EntityState.Added)
+                              // .Where(fun x -> x.
+                              // .OfType<EventEnvelope<'id, 'event, 'header>>()
+                              .ToList()
+
+
+            printfn "Save changes Events: %A" newEvents
+            printfn "subs %A" subscribers
+            // printfn "Save changes  neobjects: %A" newObjects
+            let! r = db.SaveChangesAsync()
+            subscribers |> Seq.iter(fun s ->
+              newEvents |> Seq.iter(fun e ->
+              s ctx e.Entity
+                )
+              )
+            return r
+          }
+    let saveChangesAsync ctx =
+       saveChangesAsyncWithResult ctx |> TaskResult.map ignore
 
     { StreamSet =
         fun ctx ->
@@ -161,14 +177,14 @@ type Configuration() =
       rehydrateLatest2 = rehydrateLatest2
       rehydrate = rehydrateLatest2
       rehydrateAtVersion = rehydrate
-
       rehydrateMany = rehydrateMany
       rehydrateAll = rehydrateAll
       // rehydrate = rehydrate zero evolve
       getDb = fun ctx -> getDb ctx
-      appendEvents = appendEvents
+      appendEvents = fun ctx id events -> appendEvents ctx id (events |> List.map (fun (e, h) -> e, h, None))
       applyCommand = applyCommand
-      applyEvents = applyEvents
+      applyEvents = fun ctx (id, events) -> applyEvents ctx (id, (events |> List.map (fun (e, h) -> e, h, None)))
+      applyEvents2 = applyEvents
       updateEventStore2 = updateEventStore2
       replayProjection =
         fun ctx projection ->
@@ -176,21 +192,12 @@ type Configuration() =
             let! result = replayProjection ctx projection
             return ()
           }
-
-      saveChangesAsyncWithResult =
-        fun (ctx) ->
-          taskResult {
-            let db = getDb ctx
-            let! r = db.SaveChangesAsync()
-            return r
-          }
-      saveChangesAsync =
-        fun (ctx) ->
-          taskResult {
-            let db = getDb ctx
-            let! _ = db.SaveChangesAsync()
-            return ()
-          }
+      saveChangesAsyncWithResult = saveChangesAsyncWithResult
+      saveChangesAsync = saveChangesAsync
+      subscribe = fun fn ->
+        printfn "subscribing %A" fn
+        subscribers.Add(fn)
+        ()
       queryRawEvents =
         fun ctx ->
           let db = ctx.GetService<'Db>()
@@ -206,6 +213,41 @@ type Configuration() =
       queryStreams =
         fun ctx ->
           let db = ctx.GetService<'Db>()
-          queryStreams db
+          queryStreams db }
 
-    }
+type Store<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db
+  when 'id: equality and 'Db :> DbContext>
+  (
+    serviceProvider: IServiceProvider,
+    store: EfStore<'id, 'state, 'command, 'commandHeader, 'event, 'header, 'sideEffect, 'Db>
+  ) =
+
+  member this.StreamSet = store.StreamSet serviceProvider
+  member this.EventSet = store.EventSet serviceProvider
+  member this.prepare = store.prepare serviceProvider
+  member this.appendEvents = store.appendEvents serviceProvider
+  member this.replayProjection = store.replayProjection serviceProvider
+  member this.rehydrateLatest2 = store.rehydrateLatest2 serviceProvider
+  member this.rehydrate = store.rehydrate serviceProvider
+  member this.rehydrateAtVersion = store.rehydrateAtVersion serviceProvider
+  member this.rehydrateMany = store.rehydrateMany serviceProvider
+  member this.rehydrateAll = store.rehydrateAll serviceProvider
+  member this.getDb = store.getDb serviceProvider
+  member this.updateEventStore2 = store.updateEventStore2 serviceProvider
+
+  member this.applyOperationResultToProjections =
+    store.applyOperationResultToProjections serviceProvider
+
+  member this.applyCommand = store.applyCommand serviceProvider
+  member this.applyEvents = store.applyEvents serviceProvider
+  member this.aggregate = store.aggregate
+  member this.saveChangesAsync = store.saveChangesAsync serviceProvider
+
+  member this.saveChangesAsyncWithResult =
+    store.saveChangesAsyncWithResult serviceProvider
+
+  member this.queryStreams = store.queryStreams serviceProvider
+  member this.queryRawStreams = store.queryRawStreams serviceProvider
+  member this.queryEvents = store.queryEvents serviceProvider
+  member this.queryRawEvents = store.queryRawEvents serviceProvider
+// }

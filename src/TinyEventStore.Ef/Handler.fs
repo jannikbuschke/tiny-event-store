@@ -29,7 +29,7 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (ctx: IServiceProvider)
   (id: 'id)
-  (events: ('event * 'header) list)
+  (events: ('event * 'header * CausationId option) list)
   =
   taskResult {
     let db = ctx.GetRequiredService<'Db>()
@@ -40,7 +40,6 @@ let efAppendEvents<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext and '
 
     return result
   }
-
 
 let updateStorableStreamAndEvents
   (db: DbContext)
@@ -59,7 +58,6 @@ let updateStorableStreamAndEvents
     stream.IsDeleted <- true
 
   stream.Modified <- operationResult.New.EventsChunk.Last().Timestamp
-  // here we
   let events = events |> List.map Storable.toStorableEvent
   let insertOrUpdate x = mapToEfContextOperation db dbCmd x
   // stream is loaded beforehand, so we can use its entry

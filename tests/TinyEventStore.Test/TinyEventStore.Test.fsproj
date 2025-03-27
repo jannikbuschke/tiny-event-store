@@ -28,6 +28,7 @@
         <Compile Include="Chess\Delete.fs" />
         <Compile Include="Chess\Append.fs" />
         <Compile Include="Chess\ProjectionReplayExpecto.fs" />
+        <Compile Include="UserManagement\Types.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
         <Compile Include="Program.fs" />
@@ -59,9 +60,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Serilog" Version="2.9.0" />
-        <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
-        <PackageReference Include="Serilog.Settings.Configuration" Version="3.1.0" />
+        <PackageReference Include="Serilog" Version="4.2.0" />
+        <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+        <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
 <!--        <PackageReference Include="Serilog.Sinks.Async" Version="1.4.0"/>-->
 <!--        <PackageReference Include="Serilog.AspNetCore" Version="3.2.0"/>-->
 <!--        <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1"/>-->
@@ -69,7 +70,7 @@
         <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
 <!--        <PackageReference Include="Unquote" Version="*" />-->
         <PackageReference Include="Unquote" Version="7.0.0" />
-        <PackageReference Include="DEdge.Diffract" Version="0.3.0" />
+        <PackageReference Include="DEdge.Diffract" Version="0.4.0" />
     </ItemGroup>
 
     <ItemGroup>

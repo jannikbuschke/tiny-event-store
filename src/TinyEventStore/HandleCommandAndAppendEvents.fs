@@ -7,7 +7,7 @@ open TinyEventStore
 let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)
   (currentState: Stream<'id, 'event, 'header>)
-  (id: 'id, events: ('event * 'header) list)
+  (id: 'id, events: ('event * 'header * CausationId option) list)
   =
   let oldState = rehydrate aggregate.zero aggregate.evolve currentState
 
@@ -19,7 +19,8 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
 
   let newEvents =
     events
-    |> List.mapi (fun i (evt, header) -> EventEnvelope.Create(id, evt, header, ((uint i) + lastEventNumber + 1u)))
+    |> List.mapi (fun i (evt, header, causationId) ->
+      EventEnvelope.Create(id, evt, header, causationId, ((uint i) + lastEventNumber + 1u)))
 
   let result = applyEvents aggregate oldState currentState newEvents
   result

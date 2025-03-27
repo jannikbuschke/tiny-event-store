@@ -76,3 +76,9 @@ let invoiceListEvolve =
 
 let stage (state: InvoiceListProjectionState) = ()
 let shouldDelete (state: InvoiceListProjectionState) (event: InvoiceEventEnvelope) = false
+
+let aggregate={
+  zero=invoiceDefaultZero
+  evolve = invoiceDefaultEvolve
+  shouldDelete = fun x _ -> true
+}

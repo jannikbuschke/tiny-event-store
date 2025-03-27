@@ -26,12 +26,11 @@ let mapToEfContextOperation (db: DbContext) =
   | DbSideEffect.Delete -> db.Remove >> ignore
   | DbSideEffect.DoNothing -> fun _ -> ()
 
-
 let (|IsNew|IsDeleted|ShouldDelete|ShouldUpdate|IsNewAndshouldDelete|) (operationResult: OperationResult<_, _, _, _>) =
 
   let isNew = operationResult.New.IsNew()
   let shouldDelete = operationResult.ShouldDelete
-  let isDeleted = operationResult.IsDeleted //operationResult.IsDeleted
+  let isDeleted = operationResult.IsDeleted
 
   match isNew, shouldDelete, isDeleted with
   | true, true, _ -> IsNewAndshouldDelete
@@ -45,15 +44,6 @@ let getDefaultDbOperation (operationResult: OperationResult<_, _, _, _>) =
   | IsNewAndshouldDelete -> DbSideEffect.DoNothing
   | IsNew -> DbSideEffect.Create
   | IsDeleted ->
-    // printfn "is deleted, do nothing"
     DbSideEffect.DoNothing
   | ShouldDelete -> DbSideEffect.Delete
   | ShouldUpdate -> DbSideEffect.Update
-// let isNew = operationResult.New.IsNew()
-// let shouldDelete = operationResult.ShouldDelete
-//
-// match isNew, shouldDelete with
-// | true, true -> DbSideEffect.DoNothing
-// | true, false -> DbSideEffect.Create
-// | false, true -> DbSideEffect.Delete
-// | false, false -> DbSideEffect.Updat

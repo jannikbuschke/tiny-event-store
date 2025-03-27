@@ -46,7 +46,7 @@ let finaliseDraft (draft: InvoiceDraft) : Result<Invoice, string> =
         Positions = positions }
   }
 
-let decide: PureDecide<Id, State, Command, unit, Event, EventHeader, SideEffect> =
+let decide: PureDecide<Id, State, Command, unit, Event, EventHeader, unit> =
   // TODO: get from auth
   let userId = UserId.New()
 

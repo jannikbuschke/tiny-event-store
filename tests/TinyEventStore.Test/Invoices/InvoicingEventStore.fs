@@ -22,11 +22,27 @@ let isNew (e: EventEnvelope<Id, Event, EventHeader>) =
   | DraftCreated _ -> true
   | _ -> false
 
-let store =
-  Ef.LegacyStore.efCreate<Id, State, Event, EventHeader, Command, unit, SideEffect, InvoicingDb>
-    Projections.invoiceDefaultZero
-    Projections.invoiceDefaultEvolve
-    CommandHandler.decide
+open System.Collections.Generic
+open Microsoft.AspNetCore.Http
+open Microsoft.Extensions.Logging
+open TinyEventStore
+open FsToolkit.ErrorHandling
+open Microsoft.Extensions.DependencyInjection
+open TinyEventStore.Ef.Store
+open TinyEventStore.Ef.Projections
+open Expecto
+open MyTestDomain.Invoicing.Projections
+
+let store=Configuration.Configure<Id, State, Event, EventHeader, Command, unit, InvoicingDb>(
+  Projections.aggregate,
+  CommandHandler.decide,
+  []
+  )
+// let store =
+//   Ef.LegacyStore.efCreate<Id, State, Event, EventHeader, Command, unit, SideEffect, InvoicingDb>
+//     Projections.invoiceDefaultZero
+//     Projections.invoiceDefaultEvolve
+//     CommandHandler.decide
 
 
 let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
@@ -34,19 +50,12 @@ let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
     let logger = ctx.RequestServices.GetService<ILogger<string>>()
     let db = ctx.RequestServices.GetService<InvoicingDb>()
 
-    let commandEnvelope: CommandEnvelope = CommandEnvelope.New(streamId, command, ())
+    let commandEnvelope = CommandEnvelope.New(streamId, command, ())
 
     let! runCommand = store.prepare ctx.RequestServices streamId
     let! commandResult = runCommand commandEnvelope
 
     store.updateEventStore2 ctx.RequestServices commandResult
-
-    // let allEntries = db.ChangeTracker.Entries() |> Seq.toList
-    //
-    // let entries =
-    //   db.ChangeTracker.Entries()
-    //   |> Seq.filter (fun x -> x.State = EntityState.Added)
-    //   |> Seq.toList
 
     db.ChangeTracker.Entries()
     |> Seq.iter (fun x -> (logger.LogInformation(sprintf "Entry %A" x)))
