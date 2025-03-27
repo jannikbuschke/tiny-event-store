@@ -26,6 +26,7 @@
 
         <None Include="README.md" Pack="true" PackagePath="\"/>
         <Compile Include="Ids.fs"/>
+        <Compile Include="Interfaces.fs"/>
         <Compile Include="Types.fs"/>
         <Compile Include="ApplyEvents.fs"/>
         <Compile Include="HandleCommandAndAppendEvents.fs"/>

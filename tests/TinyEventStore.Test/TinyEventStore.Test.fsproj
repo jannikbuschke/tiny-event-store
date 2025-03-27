@@ -28,6 +28,11 @@
         <Compile Include="Chess\Delete.fs" />
         <Compile Include="Chess\Append.fs" />
         <Compile Include="Chess\ProjectionReplayExpecto.fs" />
+
+        <Compile Include="theater\Types.fs" />
+        <Compile Include="theater\Aggregate.fs" />
+        <Compile Include="theater\Decider.fs" />
+
         <Compile Include="UserManagement\Types.fs" />
         <Compile Include="Creator.fs" />
         <Compile Include="JsonTests.fs" />
@@ -74,7 +79,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\..\chess\chess.fsproj" />
+      <!-- <ProjectReference Include="..\..\..\..\chess\chess.fsproj" /> -->
       <ProjectReference Include="..\..\src\TinyEventStore.Ef\TinyEventStore.Ef.fsproj" />
       <ProjectReference Include="..\..\src\TinyEventStore\TinyEventStore.fsproj" />
     </ItemGroup>
