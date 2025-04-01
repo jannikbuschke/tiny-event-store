@@ -5,39 +5,43 @@ open Microsoft.FSharp.Quotations.Patterns
 open Swensen.Unquote
 open Xunit.Sdk
 
+let prettyDiff expression reason (e: System.Exception) =
+
+  let diff =
+    match expression with
+    | Call(_, methodInfo, [ a; b ]) when methodInfo.Name = "op_Equality" ->
+      let a = a.Eval()
+      let b = b.Eval()
+
+      let diffMethod =
+        typeof<DEdge.Diffract.Differ>
+          .GetMethod(nameof DEdge.Diffract.Differ.Diff)
+          .MakeGenericMethod
+          [| a.GetType() |]
+
+      let diff: DEdge.Diffract.Diff option =
+        downcast diffMethod.Invoke(null, [| b; a; null |])
+
+      let diffString = DEdge.Diffract.Differ.ToString diff
+      $"\nDiff = \n{diffString}"
+    | _ -> ""
+
+  raise (
+    TrueException.ForNonTrueValue(
+      reason
+      + diff
+      + "\n------------------------------------\nUnquote Message:\n"
+      + e.Message,
+      false
+    )
+  )
+
 let testWithReason expression reason =
   try
     Assertions.test expression
-  with :? TrueException as e ->
-
-    let diff =
-      match expression with
-      | Call(_, methodInfo, [ a; b ]) when methodInfo.Name = "op_Equality" ->
-        let a = a.Eval()
-        let b = b.Eval()
-
-        let diffMethod =
-          typeof<DEdge.Diffract.Differ>
-            .GetMethod(nameof DEdge.Diffract.Differ.Diff)
-            .MakeGenericMethod
-            [| a.GetType() |]
-
-        let diff: DEdge.Diffract.Diff option =
-          downcast diffMethod.Invoke(null, [| b; a; null |])
-
-        let diffString = DEdge.Diffract.Differ.ToString diff
-        $"\nDiff = \n{diffString}"
-      | _ -> ""
-
-    raise (
-      TrueException.ForNonTrueValue(
-        reason
-        + diff
-        + "\n------------------------------------\nUnquote Message:\n"
-        + e.Message,
-        false
-      )
-    )
+  with
+  | :? Expecto.AssertException as e -> prettyDiff expression reason e
+  | :? TrueException as e -> prettyDiff expression reason e
 
 let expect expression = testWithReason expression ""
 

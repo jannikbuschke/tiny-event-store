@@ -38,12 +38,7 @@
         <PackageReference Include="FsToolkit.ErrorHandling" Version="4.*"/>
         <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="4.*"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.*"/>
-        <PackageReference Include="FSharp.SystemTextJson" Version="*"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.*"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
+        <PackageReference Include="FSharp.SystemTextJson" Version="1.*"/>
     </ItemGroup>
 
 <!--

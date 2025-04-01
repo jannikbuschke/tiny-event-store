@@ -5,25 +5,33 @@ open System
 let evolve: TinyEventStore.Interfaces.Evolve<_, _> =
   fun state (e: TheaterEvent) ->
     match e.Data with
-    | EventDetails.Created name ->
-      { Name = name
+    | TheaterEventDetails.Created name ->
+      {
+        Name = name
         TimeStamp = e.TimeStamp
-        IsDeleted = false }
-    | EventDetails.Updated name ->
+        IsDeleted = false
+      }
+    | TheaterEventDetails.Updated name ->
       { state with
           Name = name
-          TimeStamp = e.TimeStamp }
-    | EventDetails.Deleted ->
+          TimeStamp = e.TimeStamp
+      }
+    | TheaterEventDetails.Deleted ->
       { state with
           IsDeleted = true
-          TimeStamp = e.TimeStamp }
+          TimeStamp = e.TimeStamp
+      }
 
 let isDeleted state e = state.IsDeleted
 
 let aggregate: TinyEventStore.Interfaces.Aggregate<_, _> =
-  { zero =
-      { Name = null
+  {
+    zero =
+      {
+        Name = null
         TimeStamp = DateTimeOffset.MinValue
-        IsDeleted = false }
+        IsDeleted = false
+      }
     evolve = evolve
-    isDeleted = isDeleted }
+    isDeleted = isDeleted
+  }
