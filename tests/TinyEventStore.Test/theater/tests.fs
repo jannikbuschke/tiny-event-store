@@ -9,6 +9,14 @@ open TinyEventStore.Interfaces
 open TinyEventStore.EfStorage
 open Microsoft.EntityFrameworkCore
 
+// type Id<'Entity> = | Id of Guid
+//
+// module Id =
+//   let create () = Id(Guid.NewGuid())
+//   let value (Id guid) = guid
+//   let from (raw: Guid) = Id raw
+//   let fromRaw (raw: string) = raw |> Guid.Parse |> Id
+
 [<RequireQualifiedAccess>]
 type TheaterStreamId =
   | TheaterStreamId of Guid
@@ -16,6 +24,7 @@ type TheaterStreamId =
   static member New() = TheaterStreamId(Guid.NewGuid())
   static member ToRaw(TheaterStreamId id) = id
   static member FromRaw(id) = TheaterStreamId(id)
+  static member FromRawString(input: string) = input |> Guid.Parse |> TheaterStreamId
   static member Converter = TheaterStreamId.ToRaw, TheaterStreamId.FromRaw
 
 [<RequireQualifiedAccess>]
@@ -51,13 +60,10 @@ let updateStream: StreamUpdater<_, _, _, _> =
 type Discriminator =
   | Theater = 1
 
-// let streamConverter:Converter<TheaterStream,_> fun x ->
 
 let efStorageOptions: EventStorageOptions<_, _, _, _> =
   {
-    // Id = TheaterEventId.Converter
     StreamId = TheaterStreamId.Converter
-    //todo
     Stream =
       (fun (stream, id, version) -> Dtos.StreamDto(Id = (id |> TheaterStreamId.ToRaw), Version = version)),
       (fun x ->
@@ -113,7 +119,7 @@ type EventDbContext(options) =
 let storage (name) =
   let options = DbContextOptionsBuilder<EventDbContext>()
   options
-    .UseSqlite($"Data Source=test.{name}.sqlite")
+    .UseSqlite($"Data Source=data/test.{name}.sqlite")
     .EnableSensitiveDataLogging()
     .EnableDetailedErrors()
   |> ignore
@@ -142,7 +148,6 @@ let storeAndStorage (subscription) =
   EventStore(
     system,
     storage,
-    // fun (ctx: EventContext) (details: TheaterEventDetails) ->
     (fun ctx details ->
       {
         Version = ctx.Version
@@ -151,7 +156,6 @@ let storeAndStorage (subscription) =
       }
     ),
     subscription
-  // [ subscription ]
   ),
   storage
 
@@ -187,7 +191,7 @@ let tests =
             {
 
               Id = id
-              Version = 1UL
+              Version = 1L
               State =
                 {
                   Name = "hello world 1"
@@ -197,7 +201,7 @@ let tests =
               Events =
                 [
                   {
-                    Version = 1UL
+                    Version = 1L
                     TimeStamp = ts
                     Data = TheaterEventDetails.Created "hello world 1"
                   }
@@ -228,17 +232,17 @@ let tests =
           events = Some
             [
               {
-                Version = 1UL
+                Version = 1L
                 TimeStamp = ts
                 Data = TheaterEventDetails.Created "hello world 1"
               }
               {
-                Version = 2UL
+                Version = 2L
                 TimeStamp = ts
                 Data = TheaterEventDetails.Updated "hello world 2"
               }
               {
-                Version = 3UL
+                Version = 3L
                 TimeStamp = ts
                 Data = TheaterEventDetails.Updated "hello world 3"
               }
@@ -263,12 +267,12 @@ let tests =
           events = Some
             [
               {
-                Version = 1UL
+                Version = 1L
                 TimeStamp = ts
                 Data = TheaterEventDetails.Created "hello world"
               }
               {
-                Version = 2UL
+                Version = 2L
                 TimeStamp = ts
                 Data = TheaterEventDetails.Updated "hello world 2"
               }
@@ -288,7 +292,7 @@ let tests =
           events = Some
             [
               {
-                Version = 1UL
+                Version = 1L
                 TimeStamp = ts
                 Data = TheaterEventDetails.Created "hello world"
               }
@@ -389,6 +393,42 @@ let tests =
                                   }
         @>
     }
+
+    testTask "initialising events on different streams should be persisted" {
+      let store, storage = storeAndStorage ([])
+
+      let id = "b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326" |> TheaterStreamId.FromRawString
+      let evt = TheaterEventDetails.Created "Hello World 1"
+      do! store.ApplyEvents(id, [ evt ], ts)
+      let! events = storage.LoadAllEvents id
+      let events = events |> Expect.wantSome "Expected some events"
+      let head = events |> Expect.wantFirst "ExpectAddEventStored at least one event"
+
+      let id2 = "da6e9843-47ba-44d4-b572-90a6ed581add" |> TheaterStreamId.FromRawString
+      let evt2 = TheaterEventDetails.Created "Hello World 2"
+      do! store.ApplyEvents(id2, [ evt2 ], ts)
+      let! events2 = storage.LoadAllEvents id2
+      let events2 = events2 |> Expect.wantSome "Expected some events"
+      let head2 = events2 |> Expect.wantFirst "ExpectAddEventStored at least one event"
+
+      expect
+        <@
+          head = {
+                   TheaterEvent.Version = 1L
+                   TimeStamp = ts
+                   Data = (TheaterEventDetails.Created "Hello World 1")
+                 }
+        @>
+      expect
+        <@
+          head2 = {
+                    TheaterEvent.Version = 1L
+                    TimeStamp = ts
+                    Data = (TheaterEventDetails.Created "Hello World 2")
+                  }
+        @>
+    }
+
     testTask "initialising event should be persisted" {
       let store, storage = storeAndStorage ([])
       let id =
@@ -401,12 +441,13 @@ let tests =
       expect
         <@
           head = {
-                   TheaterEvent.Version = 1UL
+                   TheaterEvent.Version = 1L
                    TimeStamp = ts
                    Data = evt
                  }
         @>
     }
+
     testTask "initialising event should not error" {
       let store = store ()
       let id =
@@ -415,6 +456,7 @@ let tests =
       do! store.ApplyEvents(id, [ TheaterEventDetails.Created "" ], ts)
       expect <@ result1 = Ok() @>
     }
+
     testTask "non initialising event should error" {
       let store = store ()
       let id =
@@ -423,6 +465,7 @@ let tests =
       let error = result1 |> Expect.wantError "Expected error"
       expect <@ error.Details = EventStoreErrorDetails.InitializationError(InitializationError.EventIsNotInitializer) @>
     }
+
     testTask "empty events should error" {
       let store = store ()
       let id =

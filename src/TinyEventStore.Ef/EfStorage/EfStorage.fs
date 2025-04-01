@@ -8,7 +8,6 @@ open System.Linq
 open System.Runtime.CompilerServices
 open Core
 open Microsoft.EntityFrameworkCore.Storage.ValueConversion
-open TinyEventStore
 
 type Converter<'t, 'traw> = ('t -> 'traw) * ('traw -> 't)
 
@@ -16,8 +15,8 @@ type EventStorageOptions<'streamId, 'streamIdRaw, 'stream, 'event when 'streamId
   {
     TableNamePrefix: string
     StreamId: Converter<'streamId, 'streamIdRaw>
-    Stream: Converter<'stream * 'streamId * uint64, Dtos.StreamDto<'streamIdRaw, 'event>>
-    Event: Converter<'event * 'streamId * uint64, Dtos.EventDto<'streamIdRaw, 'event>>
+    Stream: Converter<'stream * 'streamId * V, Dtos.StreamDto<'streamIdRaw, 'event>>
+    Event: Converter<'event * 'streamId * V, Dtos.EventDto<'streamIdRaw, 'event>>
   }
 
 module private Helpers =
@@ -26,10 +25,13 @@ module private Helpers =
   //   ValueConverter<'t, 'traw>(toRaw, fromRaw)
 
   let correlationIdConverter () =
-    let toRaw = Option.map CorrelationId.ToRawValue >> Option.toNullable
-    let fromRaw = Option.ofNullable >> Option.map CorrelationId.FromRawValue
-    ValueConverter<CorrelationId option, Nullable<Guid>>(toRaw, fromRaw)
+    let toRaw = Option.map TinyEventStore.CorrelationId.ToRawValue >> Option.toNullable
+    let fromRaw =
+      Option.ofNullable >> Option.map TinyEventStore.CorrelationId.FromRawValue
+    ValueConverter<TinyEventStore.CorrelationId option, Nullable<Guid>>(toRaw, fromRaw)
 
+module Seq =
+  let toSeqAsync (q: IQueryable<'t>) = q.ToListAsync()
 
 type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
   when 'stream :> IStream
@@ -61,48 +63,65 @@ type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
 
   let toEventDto event = event |> (eventConverter |> fst)
 
+  let converToList events = events |> Seq.map toEvent |> Seq.toList
+
   member _.StreamSet() =
     // printfn "Stream %A" (typeof<'streamIdRaw>)
     db.Set<Dtos.StreamDto<'streamIdRaw, 'event>>()
 
   member this.QueryStreams() = this.StreamSet().AsNoTracking()
+  member this.GetStream(id) =
+    task {
+      let streamId = id |> (idConverter |> fst)
+      let! stream = this.StreamSet().AsNoTracking().FirstOrDefaultAsync(fun x -> x.Id = streamId)
+      return stream
+    }
 
   member _.EventSet() =
     db.Set<Dtos.EventDto<'streamIdRaw, 'event>>()
 
-  member this.QueryEvents() = this.EventSet().AsNoTracking()
+  member this.QueryEvents() =
+    this.EventSet().OrderBy(fun x -> x.Version).AsNoTracking()
+
+  member this.QueryStreamEvents(id: 'streamId) =
+    let streamId = id |> (idConverter |> fst)
+    this.QueryEvents().Where(fun x -> x.StreamId = streamId).AsNoTracking()
+
 
   interface IEventStorage<'streamId, 'stream, 'state, 'event, 'c> with
 
-    member this.LoadEventRange(id, from: uint64, until: uint64) =
-      task {
-        let! e = this.QueryEvents().ToListAsync()
-        return e |> Seq.map toEvent |> Seq.toList |> Some
-      }
+    member this.LoadEventRange(id: 'streamId, from, until) =
+      id
+      |> this.QueryStreamEvents
+      |> Seq.toSeqAsync
+      |> Task.map (converToList >> Some)
+    // task {
+    //   let! x = this.QueryStreamEvents(id) |> Seq.toSeqAsync |> Task.map (converToList >>Some)
+    //   let! e = this.QueryStreamEvents(id).ToListAsync()
+    //   return e |> converToList |> Some
+    // }
 
     member this.LoadEventsFrom(id, from) =
       task {
-        let! e = this.QueryEvents().ToListAsync()
+        let! e = this.QueryStreamEvents(id).ToListAsync()
         return e |> Seq.map toEvent |> Seq.toList |> Some
       }
 
     member this.LoadAllEvents(id) =
       task {
-        let! e = this.QueryEvents().ToListAsync()
+        let! e = this.QueryStreamEvents(id).ToListAsync()
         return e |> Seq.map toEvent |> Seq.toList |> Some
       }
 
     member this.LoadRequiredStream(id: 'streamId) =
       task {
-        let id = id |> (idConverter |> fst)
-        let! streams = this.QueryStreams().Where(fun x -> x.Id = id).ToListAsync()
-        if streams |> Seq.length = 0 then
+        let! stream = this.GetStream id
+        if box stream = null then
           return Error(EventStoreError.New(EventStoreErrorDetails.NotFound, None))
         else
-          let! events = this.QueryEvents().ToListAsync()
+          let! events = this.QueryStreamEvents(id).ToListAsync()
           let events = events |> Seq.map toEvent |> Seq.toList
-          let stream = streams.First() |> toStream
-          return Ok(events, stream)
+          return Ok(events, stream |> toStream)
       }
 
     member this.LoadStream(id: 'streamId) =
@@ -182,7 +201,7 @@ type ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'discriminator when 'strea
         .Property(fun x -> x.Data)
         .IsRequired(true)
         .HasColumnName("Data")
-        .HasConversion(Json.serialize, Json.deserialize)
+        .HasConversion(TinyEventStore.Json.serialize, TinyEventStore.Json.deserialize)
 
 
     // let headerProp =

@@ -3,12 +3,23 @@ namespace TinyEventStore.Interfaces
 open FsToolkit.ErrorHandling
 open System
 
+type V = int64
+type SequenceId = int64
+
+module Version =
+  let V1 = 1L
+  let Zero = 0L
+
+module SequenceId =
+  let V1 = 1L
+  let Zero = 0L
+
 type IEvent =
-  abstract member Version: uint64
+  abstract member Version: V
   abstract member TimeStamp: DateTimeOffset
 
 type IStream =
-  abstract member Version: uint64
+  abstract member Version: V
   abstract member Modified: DateTimeOffset
   abstract member Created: DateTimeOffset
 
@@ -73,7 +84,7 @@ type ApplyResult = Task<Result<unit, EventStoreError>>
 type AppendEventsResult<'id, 'state, 'e> =
   {
     Id: 'id
-    Version: uint64
+    Version: V
     State: 'state
     Events: 'e list
     IsNew: bool
@@ -82,8 +93,8 @@ type AppendEventsResult<'id, 'state, 'e> =
   }
 
 type IEventStorage<'streamId, 'stream, 'state, 'event, 'c when 'stream :> IStream> =
-  abstract member LoadEventRange: 'streamId * uint64 * uint64 -> Task<'event list option>
-  abstract member LoadEventsFrom: 'streamId * uint64 -> Task<'event list option>
+  abstract member LoadEventRange: 'streamId * V * V -> Task<'event list option>
+  abstract member LoadEventsFrom: 'streamId * V -> Task<'event list option>
   abstract member LoadAllEvents: 'streamId -> Task<'event list option>
   abstract member LoadStream: 'streamId -> Task<('event list * 'stream) option>
   abstract member LoadRequiredStream: 'streamId -> Task<Result<'event list * 'stream, EventStoreError>>
@@ -96,11 +107,11 @@ type HydrationResult<'s, 'stream, 'e when 'stream :> IStream> =
     Events: 'e list
   }
 
-  member this.IsZero() = this.Stream.Version = 0UL
+  member this.IsZero() = this.Stream.Version = Version.Zero
 
 type EventContext =
   {
-    Version: uint64
+    Version: V
     TimeStamp: DateTimeOffset
   }
 
@@ -146,7 +157,7 @@ module Core =
   let getStateAndVersion (system: System<_, _, _, _>) (hydrationResult: HydrationResult<_, _, _> option) =
     hydrationResult
     |> Option.map (fun x -> (x.State, x.Stream.Version))
-    |> Option.defaultValue (system.aggregate.zero, 0UL)
+    |> Option.defaultValue (system.aggregate.zero, Version.Zero)
 
   let appendEvents
     (system: System<'state, 'e, 'ed, 'c>)
@@ -175,10 +186,10 @@ module Core =
         else
           Ok hydrationResult
 
-      let evolve (v0: uint64, state0: 'state, evts: 'e list) (evt: 'ed) =
+      let evolve (v0: V, state0: 'state, evts: 'e list) (evt: 'ed) =
         let ctx =
           {
-            Version = v0 + 1UL
+            Version = v0 + 1L
             TimeStamp = ts
           }
         let wrappedEvent = evt |> f ctx
@@ -306,15 +317,15 @@ module InmemEventStorage =
 
     { new IEventStorage<'id, 'stream, 'state, 'e, 'c> with
 
-        member _.LoadEventRange(id, from: uint64, until: uint64) =
+        member _.LoadEventRange(id, from: V, until: V) =
           id
           |> getEvents
-          |> Option.map (List.skip (int (from - 1UL)))
+          |> Option.map (List.skip (int (from - 1L)))
           |> Option.map (List.take (int (until - from)))
           |> Task.FromResult
 
         member _.LoadEventsFrom(id, from) =
-          id |> getEvents |> Option.map (List.skip (int (from - 1UL))) |> Task.FromResult
+          id |> getEvents |> Option.map (List.skip (int (from - 1L))) |> Task.FromResult
 
         member _.LoadAllEvents(id) =
           id |> getEvents |> Option.map (List.skip 0) |> Task.FromResult

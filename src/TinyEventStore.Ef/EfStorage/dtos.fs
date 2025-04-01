@@ -2,19 +2,20 @@ module TinyEventStore.EfStorage.Dtos
 
 open System
 open System.Collections.Generic
-open TinyEventStore
+open TinyEventStore.Interfaces
+// open TinyEventStore
 
 [<AbstractClass>]
 type StreamBaseDto<'id when 'id: equality>() =
 
   member val Id: 'id = Unchecked.defaultof<'id> with get, set
 
-  member val Version = Unchecked.defaultof<uint64> with get, set
+  member val Version = Unchecked.defaultof<V> with get, set
   member val IsDeleted = Unchecked.defaultof<bool> with get, set
   member val Created = Unchecked.defaultof<DateTimeOffset> with get, set
   member val Modified = Unchecked.defaultof<DateTimeOffset> with get, set
 
-  member this.HasValidVersion() = this.Version > 0UL
+  member this.HasValidVersion() = this.Version > Version.Zero
 
   member this.IsValid() =
     this.HasValidVersion() && (this.Id <> Unchecked.defaultof<'id>)
@@ -36,15 +37,15 @@ and [<AbstractClass>] EventBaseDto<'id>() =
 
   member val EventId = Unchecked.defaultof<'id> with get, set
 
-  member val SequenceId = Unchecked.defaultof<uint64> with get, set
+  member val SequenceId = Unchecked.defaultof<SequenceId> with get, set
   member val IsDeleted = Unchecked.defaultof<bool> with get, set
-  member val Version = Unchecked.defaultof<uint64> with get, set
+  member val Version = Unchecked.defaultof<V> with get, set
   member val Timestamp = Unchecked.defaultof<DateTimeOffset> with get, set
   member val CausationId = Unchecked.defaultof<StorableCausationId option> with get, set
-  member val CorrelationId = Unchecked.defaultof<CorrelationId option> with get, set
+  member val CorrelationId = Unchecked.defaultof<TinyEventStore.CorrelationId option> with get, set
 
-  member this.HasValidSequenceId() = this.SequenceId > 0UL
-  member this.HasValidVersion() = this.Version > 0UL
+  member this.HasValidSequenceId() = this.SequenceId > SequenceId.Zero
+  member this.HasValidVersion() = this.Version > Version.Zero
 
   member this.IsValid() =
     this.HasValidSequenceId() && this.HasValidVersion()

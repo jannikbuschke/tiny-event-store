@@ -11,7 +11,7 @@ type TheaterEventDetails =
 
 type TheaterEvent =
   {
-    Version: uint64
+    Version: V
     TimeStamp: DateTimeOffset
     Data: TheaterEventDetails
   }
@@ -22,7 +22,7 @@ type TheaterEvent =
 
 type TheaterStream =
   {
-    Version: uint64
+    Version: V
     Created: DateTimeOffset
     Updated: DateTimeOffset
     Name: string
