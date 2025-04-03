@@ -27,6 +27,7 @@ type ICommand =
   abstract member TimeStamp: DateTimeOffset
 
 type Evolve<'s, 'e> = 's -> 'e -> 's
+// todo, change to result
 type Decide<'s, 'c, 'e> = 's -> 'c -> 'e list
 type IsDeleted<'s, 'e> = 's -> 'e -> bool
 type IsInitialiser<'m> = 'm -> bool
@@ -37,6 +38,7 @@ type Aggregate<'s, 'e> =
   {
     zero: 's
     evolve: Evolve<'s, 'e>
+    // IsDeleting
     isDeleted: IsDeleted<'s, 'e>
   }
 
@@ -252,9 +254,9 @@ module Core =
       return! appendEvents system storage f c.TimeStamp id events
     }
 
-type Subscription<'id, 'state, 'e> = AppendEventsResult<'id, 'state, 'e> -> Task<unit>
+type Subscription<'id, 'state, 'e, 'ctx> = 'ctx -> AppendEventsResult<'id, 'state, 'e> -> Task<unit>
 
-type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed
+type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
   when 'state: equality
   and 'stream :> IStream
   and 'stream: equality
@@ -263,29 +265,29 @@ type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed
   and 'c :> ICommand>
   (
     system: System<'state, 'e, 'ed, 'c>,
-    store: IEventStorage<'id, 'stream, 'state, 'e, 'c>,
+    // store: IEventStorage<'id, 'stream, 'state, 'e, 'c>,
     wrapper: WrapEventDetails<'ed, 'e>,
-    subscriptions: Subscription<'id, 'state, 'e> list
+    subscriptions: Subscription<'id, 'state, 'e, 'ctx> list
   ) =
-  member _.Rehydrate(id) =
+  member _.Rehydrate(store: IEventStorage<_, _, _, _, _>, id) =
     Core.rehydrate system.aggregate store id
 
-  member _.ApplyEvents(id, eventDetails: 'ed list, ts) =
+  member _.ApplyEvents(store: IEventStorage<_, _, _, _, _>, id, eventDetails: 'ed list, ts, ctx: 'ctx) =
     taskResult {
       let! result = Core.appendEvents system store wrapper ts id eventDetails
       let! result = result
       for subscription in subscriptions do
-        do! subscription (result)
+        do! subscription ctx result
     }
-  member this.ApplyEvents(id, eventDetails: 'ed list) =
-    this.ApplyEvents(id, eventDetails, DateTimeOffset.UtcNow)
+  member this.ApplyEvents(store: IEventStorage<_, _, _, _, _>, id, eventDetails: 'ed list, ctx: 'ctx) =
+    this.ApplyEvents(store, id, eventDetails, DateTimeOffset.UtcNow, ctx)
 
-  member _.ApplyCommand(id, command) =
+  member _.ApplyCommand(store: IEventStorage<_, _, _, _, _>, id, command, ctx: 'ctx) =
     taskResult {
       let! result = Core.applyCommand system store wrapper id command
       let! result = result
       for subscription in subscriptions do
-        do! subscription (result)
+        do! subscription ctx result
     }
 
 type StreamCreator<'id, 'stream, 'state, 'e when 'stream :> IStream> = AppendEventsResult<'id, 'state, 'e> -> 'stream

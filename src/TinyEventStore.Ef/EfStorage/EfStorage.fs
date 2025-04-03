@@ -11,12 +11,15 @@ open Microsoft.EntityFrameworkCore.Storage.ValueConversion
 
 type Converter<'t, 'traw> = ('t -> 'traw) * ('traw -> 't)
 
-type EventStorageOptions<'streamId, 'streamIdRaw, 'stream, 'event when 'streamId: equality and 'streamIdRaw: equality> =
+type EventStorageOptions<'streamId, 'streamIdRaw, 'stream, 'state, 'event
+  when 'streamId: equality and 'streamIdRaw: equality and 'stream :> IStream> =
   {
     TableNamePrefix: string
     StreamId: Converter<'streamId, 'streamIdRaw>
     Stream: Converter<'stream * 'streamId * V, Dtos.StreamDto<'streamIdRaw, 'event>>
     Event: Converter<'event * 'streamId * V, Dtos.EventDto<'streamIdRaw, 'event>>
+    CreateStream: StreamCreator<'streamId, 'stream, 'state, 'event>
+    UpdateStream: StreamUpdater<'streamId, 'stream, 'state, 'event>
   }
 
 module private Helpers =
@@ -40,14 +43,7 @@ type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
   // and 'event: not struct
   'stream: not struct
   and 'streamId: equality
-  and 'streamIdRaw: equality>
-  (
-    streamCreator: StreamCreator<'streamId, 'stream, _, _>,
-    streamUpdater: StreamUpdater<'streamId, 'stream, _, _>,
-    db: DbContext,
-    options: EventStorageOptions<'streamId, 'streamIdRaw, _, _>
-
-  ) =
+  and 'streamIdRaw: equality>(db: DbContext, options: EventStorageOptions<'streamId, 'streamIdRaw, _, _, _>) =
 
   let eventConverter = options.Event
   let streamConverter = options.Stream
@@ -95,23 +91,26 @@ type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
       |> this.QueryStreamEvents
       |> Seq.toSeqAsync
       |> Task.map (converToList >> Some)
-    // task {
-    //   let! x = this.QueryStreamEvents(id) |> Seq.toSeqAsync |> Task.map (converToList >>Some)
-    //   let! e = this.QueryStreamEvents(id).ToListAsync()
-    //   return e |> converToList |> Some
-    // }
 
     member this.LoadEventsFrom(id, from) =
-      task {
-        let! e = this.QueryStreamEvents(id).ToListAsync()
-        return e |> Seq.map toEvent |> Seq.toList |> Some
-      }
+      id
+      |> this.QueryStreamEvents
+      |> Seq.toSeqAsync
+      |> Task.map (converToList >> Some)
+    // task {
+    //   let! e = this.QueryStreamEvents(id).ToListAsync()
+    //   return e |> Seq.map toEvent |> Seq.toList |> Some
+    // }
 
     member this.LoadAllEvents(id) =
-      task {
-        let! e = this.QueryStreamEvents(id).ToListAsync()
-        return e |> Seq.map toEvent |> Seq.toList |> Some
-      }
+      id
+      |> this.QueryStreamEvents
+      |> Seq.toSeqAsync
+      |> Task.map (converToList >> Some)
+    // task {
+    //   let! e = this.QueryStreamEvents(id).ToListAsync()
+    //   return e |> Seq.map toEvent |> Seq.toList |> Some
+    // }
 
     member this.LoadRequiredStream(id: 'streamId) =
       task {
@@ -136,10 +135,11 @@ type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
 
         let! s1 =
           if v.IsNew then
-            streamCreator v |> Ok
+            options.CreateStream v |> Ok
+
           else
             stream
-            |> Option.map (fun (_, existingStream) -> streamUpdater existingStream v |> Ok)
+            |> Option.map (fun (_, existingStream) -> options.UpdateStream existingStream v |> Ok)
             |> Option.defaultValue (EventStoreError.New(EventStoreErrorDetails.NotFound, None) |> Error)
         let streamDto = (s1, v.Id, s1.Version) |> toStreamDto
         if v.IsNew then
@@ -175,7 +175,8 @@ type ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'discriminator when 'strea
   ) =
   member _.WithStreamType<'streamId, 'streamIdRaw, 'eventId, 'eventIdRaw, 'stream, 'event
     when 'eventId: equality and 'streamId: equality>
-    (discriminatorValue: 'discriminator, options: EventStorageOptions<'streamId, 'streamIdRaw, 'stream, 'event>, cfg) =
+    (discriminatorValue: 'discriminator, cfg)
+    =
 
     streamEntityDiscriminator.HasValue<Dtos.StreamDto<'streamIdRaw, 'event>> discriminatorValue
     |> ignore
