@@ -284,237 +284,252 @@ let tests =
         @>
     }
 
-  // testTask "Applying multiple commands should create events 2" {
-  //   let store, storage = storeAndStorage ([])
-  //   let id = Guid.NewGuid() |> TheaterStreamId.FromRaw
-  //
-  //   printfn "send one command"
-  //   do! store.ApplyCommand(id, TheaterCommand.New(Create "hello world"))
-  //   printfn "send another command"
-  //   do! store.ApplyCommand(id, TheaterCommand.New(Update "hello world 2"))
-  //
-  //   let! events = storage.LoadAllEvents id
-  //   printfn "Events\n%A" events
-  //
-  //   expect
-  //     <@
-  //       events = Some
-  //         [
-  //           {
-  //             Version = 1L
-  //             TimeStamp = ts
-  //             Data = TheaterEventDetails.Created "hello world"
-  //           }
-  //           {
-  //             Version = 2L
-  //             TimeStamp = ts
-  //             Data = TheaterEventDetails.Updated "hello world 2"
-  //           }
-  //         ]
-  //     @>
-  // }
-  //
-  // testTask "initialising command should create event" {
-  //   let store, storage = storeAndStorage ([])
-  //   let id = Guid.NewGuid() |> TheaterStreamId.FromRaw
-  //   do! store.ApplyCommand(id, TheaterCommand.New(Create "hello world"))
-  //
-  //   let! events = storage.LoadAllEvents id
-  //
-  //   expect
-  //     <@
-  //       events = Some
-  //         [
-  //           {
-  //             Version = 1L
-  //             TimeStamp = ts
-  //             Data = TheaterEventDetails.Created "hello world"
-  //           }
-  //         ]
-  //     @>
-  // }
-  //
-  // testTask "initialising command should not error" {
-  //   let store = store ()
-  //   let id = Guid.NewGuid() |> TheaterStreamId.FromRaw
-  //   let! result1 = store.ApplyCommand(id, TheaterCommand.New(Create "hello world"))
-  //   result1 |> Expect.isOk "Expected ok"
-  // }
-  //
-  // testTask "non initialising command should error" {
-  //   let store = store ()
-  //   let id = Guid.NewGuid() |> TheaterStreamId.FromRaw
-  //   let! result1 = store.ApplyCommand(id, TheaterCommand.New(Update "hello world"))
-  //   let error =
-  //     sprintf
-  //       "Expected an initialising command (but got (TheaterCommand) which is not defined as an initializer), as the env stream %s does not yet have any events"
-  //       (id.ToString())
-  //
-  //   expect
-  //     <@
-  //       result1 = Error(
-  //         {
-  //           Message = Some error
-  //           Details = EventStoreErrorDetails.InitializationError(InitializationError.CommandIsNotInitializer)
-  //         }
-  //       )
-  //     @>
-  // }
-  //
-  // testTask "Deletion event should mark stream as deleted" {
-  //   let store = store ()
-  //   let id =
-  //     Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
-  //   do!
-  //     store.ApplyEvents(
-  //       id,
-  //       [
-  //         TheaterEventDetails.Created "Hello World"
-  //         TheaterEventDetails.Updated "Hello World 2"
-  //       ],
-  //       ts
-  //     )
-  //   let! hydrationResult = store.Rehydrate id
-  //   let hydrationResult = hydrationResult |> Expect.wantSome "Expected Some"
-  //   expect
-  //     <@
-  //       hydrationResult.State = {
-  //                                 TimeStamp = ts
-  //                                 IsDeleted = false
-  //                                 Name = "Hello World 2"
-  //                               }
-  //     @>
-  // }
-  // testTask "Appending multiple events" {
-  //   let store = store ()
-  //   let id =
-  //     Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
-  //   do!
-  //     store.ApplyEvents(
-  //       id,
-  //       [
-  //         TheaterEventDetails.Created "Hello World"
-  //         TheaterEventDetails.Updated "Hello World 2"
-  //       ],
-  //       ts
-  //     )
-  //   let! hydrationResult = store.Rehydrate id
-  //   let hydrationResult = hydrationResult |> Expect.wantSome "Expected Some"
-  //   expect
-  //     <@
-  //       hydrationResult.State = {
-  //                                 TimeStamp = ts
-  //                                 IsDeleted = false
-  //                                 Name = "Hello World 2"
-  //                               }
-  //     @>
-  // }
-  // testTask "initialising event should create stream" {
-  //   let store = store ()
-  //   let id =
-  //     Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
-  //   do! store.ApplyEvents(id, [ TheaterEventDetails.Created "Hello World" ], ts)
-  //   let! hydrationResult = store.Rehydrate id
-  //   let hydrationResult = hydrationResult |> Expect.wantSome "Expected Some"
-  //   expect <@ box hydrationResult.State <> null @>
-  //   expect <@ hydrationResult.State <> system.aggregate.zero @>
-  //   expect
-  //     <@
-  //       hydrationResult.State = {
-  //                                 TimeStamp = ts
-  //                                 IsDeleted = false
-  //                                 Name = "Hello World"
-  //                               }
-  //     @>
-  // }
-  //
-  // testTask "initialising events on different streams should be persisted" {
-  //   let store, storage = storeAndStorage ([])
-  //
-  //   let id = "b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326" |> TheaterStreamId.FromRawString
-  //   let evt = TheaterEventDetails.Created "Hello World 1"
-  //   do! store.ApplyEvents(id, [ evt ], ts)
-  //   let! events = storage.LoadAllEvents id
-  //   let events = events |> Expect.wantSome "Expected some events"
-  //   let head = events |> Expect.wantFirst "ExpectAddEventStored at least one event"
-  //
-  //   let id2 = "da6e9843-47ba-44d4-b572-90a6ed581add" |> TheaterStreamId.FromRawString
-  //   let evt2 = TheaterEventDetails.Created "Hello World 2"
-  //   do! store.ApplyEvents(id2, [ evt2 ], ts)
-  //   let! events2 = storage.LoadAllEvents id2
-  //   let events2 = events2 |> Expect.wantSome "Expected some events"
-  //   let head2 = events2 |> Expect.wantFirst "ExpectAddEventStored at least one event"
-  //
-  //   expect
-  //     <@
-  //       head = {
-  //                TheaterEvent.Version = 1L
-  //                TimeStamp = ts
-  //                Data = (TheaterEventDetails.Created "Hello World 1")
-  //              }
-  //     @>
-  //   expect
-  //     <@
-  //       head2 = {
-  //                 TheaterEvent.Version = 1L
-  //                 TimeStamp = ts
-  //                 Data = (TheaterEventDetails.Created "Hello World 2")
-  //               }
-  //     @>
-  // }
-  //
-  // testTask "initialising event should be persisted" {
-  //   let store, storage = storeAndStorage ([])
-  //   let id =
-  //     Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
-  //   let evt = TheaterEventDetails.Created "Hello World"
-  //   do! store.ApplyEvents(id, [ evt ], ts)
-  //   let! events = storage.LoadAllEvents id
-  //   let events = events |> Expect.wantSome "Expected some events"
-  //   let head = events |> Expect.wantFirst "ExpectAddEventStoreed at least one event"
-  //   expect
-  //     <@
-  //       head = {
-  //                TheaterEvent.Version = 1L
-  //                TimeStamp = ts
-  //                Data = evt
-  //              }
-  //     @>
-  // }
-  //
-  // testTask "initialising event should not error" {
-  //   let store = store ()
-  //   let id =
-  //     Guid.Parse("0041e429-c8b6-48ab-b7b7-2151940ff8bf") |> TheaterStreamId.FromRaw
-  //   let! result1 = store.ApplyEvents(id, [ TheaterEventDetails.Created "" ], ts)
-  //   do! store.ApplyEvents(id, [ TheaterEventDetails.Created "" ], ts)
-  //   expect <@ result1 = Ok() @>
-  // }
-  //
-  // testTask "non initialising event should error" {
-  //   let store = store ()
-  //   let id =
-  //     Guid.Parse("dc41f5f7-46aa-4406-99b2-61510d549b4f") |> TheaterStreamId.FromRaw
-  //   let! result1 = store.ApplyEvents(id, [ TheaterEventDetails.Deleted ], ts)
-  //   let error = result1 |> Expect.wantError "Expected error"
-  //   expect <@ error.Details = EventStoreErrorDetails.InitializationError(InitializationError.EventIsNotInitializer) @>
-  // }
-  //
-  // testTask "empty events should error" {
-  //   let store = store ()
-  //   let id =
-  //     Guid.Parse("07b23a15-c365-4391-9e27-2413066a42c9") |> TheaterStreamId.FromRaw
-  //   let! x = task { return 1 }
-  //
-  //   let! result1 = store.ApplyEvents(id, [], ts)
-  //   result1 |> Expect.isError "expected ok"
-  //
-  //   result {
-  //     let! x = result1
-  //     return x
-  //   }
-  //   |> fun x -> Expect.isOk "" |> ignore
-  //
-  // }
+    testTask "Applying multiple commands should create events 2" {
+      let store = store ([])
+      let id =
+        Guid.Parse "7c5af6e2-01c6-474d-a95b-7aeb0dbe2bae" |> TheaterStreamId.FromRaw
+      let storage = createContext id
+      let ctx = ""
+
+      printfn "send one command"
+      do! store.ApplyCommand(storage, id, TheaterCommand.New(Create "hello world"), ctx)
+      printfn "send another command"
+      do! store.ApplyCommand(storage, id, TheaterCommand.New(Update "hello world 2"), ctx)
+
+      let! events = storage.LoadAllEvents id
+      printfn "Events\n%A" events
+
+      expect
+        <@
+          events = Some
+            [
+              {
+                Version = 1L
+                TimeStamp = ts
+                Data = TheaterEventDetails.Created "hello world"
+              }
+              {
+                Version = 2L
+                TimeStamp = ts
+                Data = TheaterEventDetails.Updated "hello world 2"
+              }
+            ]
+        @>
+    }
+
+    testTask "initialising command should create event" {
+      let store = store ([])
+      let id =
+        Guid.Parse "533b2770-e6c1-40ac-b985-bc9541f937aa" |> TheaterStreamId.FromRaw
+      let storage = createContext id
+      let ctx = ""
+      let id = Guid.NewGuid() |> TheaterStreamId.FromRaw
+      do! store.ApplyCommand(storage, id, TheaterCommand.New(Create "hello world"), ctx)
+
+      let! events = storage.LoadAllEvents id
+
+      expect
+        <@
+          events = Some
+            [
+              {
+                Version = 1L
+                TimeStamp = ts
+                Data = TheaterEventDetails.Created "hello world"
+              }
+            ]
+        @>
+    }
+
+    testTask "initialising command should not error" {
+      let store = store ([])
+      let id =
+        Guid.Parse "81ef2928-8f94-4306-b0be-9bc3b05338c8" |> TheaterStreamId.FromRaw
+      let storage = createContext id
+      let ctx = ""
+      let! result1 = store.ApplyCommand(storage, id, TheaterCommand.New(Create "hello world"), ctx)
+      result1 |> Expect.isOk "Expected ok"
+    }
+
+    testTask
+      "non initialising command should error"
+      { let store = store ([])
+      let id =
+        Guid.Parse "2aa36167-0a49-489c-b5df-b24ecf7ef026" |> TheaterStreamId.FromRaw
+      let storage = createContext id
+      let ctx = ""
+      let! result1 = store.ApplyCommand(storage, id, TheaterCommand.New(Update "hello world"), ctx)
+      let error =
+        sprintf
+          "Expected an initialising command (but got (TheaterCommand) which is not defined as an initializer), as the env stream %s does not yet have any events"
+          (id.ToString())
+
+      expect
+        <@
+          result1 = Error(
+            {
+              Message = Some error
+              Details = EventStoreErrorDetails.InitializationError(InitializationError.CommandIsNotInitializer)
+            }
+          )
+        @> }
+
+      testTask
+      "Deletion event should mark stream as deleted"
+      { let store = store ()
+      let id =
+        Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
+      do!
+        store.ApplyEvents(
+          id,
+          [
+            TheaterEventDetails.Created "Hello World"
+            TheaterEventDetails.Updated "Hello World 2"
+          ],
+          ts
+        )
+      let! hydrationResult = store.Rehydrate id
+      let hydrationResult = hydrationResult |> Expect.wantSome "Expected Some"
+      expect
+        <@
+          hydrationResult.State = {
+                                    TimeStamp = ts
+                                    IsDeleted = false
+                                    Name = "Hello World 2"
+                                  }
+        @> }
+
+      testTask
+      "Appending multiple events"
+      { let store = store ()
+      let id =
+        Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
+      do!
+        store.ApplyEvents(
+          id,
+          [
+            TheaterEventDetails.Created "Hello World"
+            TheaterEventDetails.Updated "Hello World 2"
+          ],
+          ts
+        )
+      let! hydrationResult = store.Rehydrate id
+      let hydrationResult = hydrationResult |> Expect.wantSome "Expected Some"
+      expect
+        <@
+          hydrationResult.State = {
+                                    TimeStamp = ts
+                                    IsDeleted = false
+                                    Name = "Hello World 2"
+                                  }
+        @> }
+      testTask
+      "initialising event should create stream"
+      { let store = store ()
+      let id =
+        Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
+      do! store.ApplyEvents(id, [ TheaterEventDetails.Created "Hello World" ], ts)
+      let! hydrationResult = store.Rehydrate id
+      let hydrationResult = hydrationResult |> Expect.wantSome "Expected Some"
+      expect <@ box hydrationResult.State <> null @>
+      expect <@ hydrationResult.State <> system.aggregate.zero @>
+      expect
+        <@
+          hydrationResult.State = {
+                                    TimeStamp = ts
+                                    IsDeleted = false
+                                    Name = "Hello World"
+                                  }
+        @> }
+
+      testTask
+      "initialising events on different streams should be persisted"
+      { let store, storage = storeAndStorage ([])
+
+      let id = "b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326" |> TheaterStreamId.FromRawString
+      let evt = TheaterEventDetails.Created "Hello World 1"
+      do! store.ApplyEvents(id, [ evt ], ts)
+      let! events = storage.LoadAllEvents id
+      let events = events |> Expect.wantSome "Expected some events"
+      let head = events |> Expect.wantFirst "ExpectAddEventStored at least one event"
+
+      let id2 = "da6e9843-47ba-44d4-b572-90a6ed581add" |> TheaterStreamId.FromRawString
+      let evt2 = TheaterEventDetails.Created "Hello World 2"
+      do! store.ApplyEvents(id2, [ evt2 ], ts)
+      let! events2 = storage.LoadAllEvents id2
+      let events2 = events2 |> Expect.wantSome "Expected some events"
+      let head2 = events2 |> Expect.wantFirst "ExpectAddEventStored at least one event"
+
+      expect
+        <@
+          head = {
+                   TheaterEvent.Version = 1L
+                   TimeStamp = ts
+                   Data = (TheaterEventDetails.Created "Hello World 1")
+                 }
+        @>
+      expect
+        <@
+          head2 = {
+                    TheaterEvent.Version = 1L
+                    TimeStamp = ts
+                    Data = (TheaterEventDetails.Created "Hello World 2")
+                  }
+        @> }
+
+      testTask
+      "initialising event should be persisted"
+      { let store, storage = storeAndStorage ([])
+      let id =
+        Guid.Parse("b5a03c1e-daed-4b76-ad4c-5fbe9fcd3326") |> TheaterStreamId.FromRaw
+      let evt = TheaterEventDetails.Created "Hello World"
+      do! store.ApplyEvents(id, [ evt ], ts)
+      let! events = storage.LoadAllEvents id
+      let events = events |> Expect.wantSome "Expected some events"
+      let head = events |> Expect.wantFirst "ExpectAddEventStoreed at least one event"
+      expect
+        <@
+          head = {
+                   TheaterEvent.Version = 1L
+                   TimeStamp = ts
+                   Data = evt
+                 }
+        @> }
+
+      testTask
+      "initialising event should not error"
+      { let store = store ()
+      let id =
+        Guid.Parse("0041e429-c8b6-48ab-b7b7-2151940ff8bf") |> TheaterStreamId.FromRaw
+      let! result1 = store.ApplyEvents(id, [ TheaterEventDetails.Created "" ], ts)
+      do! store.ApplyEvents(id, [ TheaterEventDetails.Created "" ], ts)
+      expect <@ result1 = Ok() @> }
+
+      testTask
+      "non initialising event should error"
+      { let store = store ()
+      let id =
+        Guid.Parse("dc41f5f7-46aa-4406-99b2-61510d549b4f") |> TheaterStreamId.FromRaw
+      let! result1 = store.ApplyEvents(id, [ TheaterEventDetails.Deleted ], ts)
+      let error = result1 |> Expect.wantError "Expected error"
+      expect <@ error.Details = EventStoreErrorDetails.InitializationError(InitializationError.EventIsNotInitializer) @> }
+
+      testTask
+      "empty events should error" {
+      let store = store ()
+      let id =
+        Guid.Parse("07b23a15-c365-4391-9e27-2413066a42c9") |> TheaterStreamId.FromRaw
+      let! x = task { return 1 }
+
+      let! result1 = store.ApplyEvents(id, [], ts)
+      result1 |> Expect.isError "expected ok"
+
+      result {
+        let! x = result1
+        return x
+      }
+      |> fun x -> Expect.isOk "" |> ignore
+
+    }
 
   ]
