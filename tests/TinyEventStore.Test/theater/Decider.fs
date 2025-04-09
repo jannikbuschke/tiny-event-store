@@ -26,6 +26,7 @@ let decide: TinyEventStore.Interfaces.Decide<_, _, _> =
 let system: TinyEventStore.Interfaces.System<_, _, _, _> =
   {
     aggregate = Aggregate.aggregate
+    projections = []
     decide = decide
     isCommandInitializer =
       fun c ->
@@ -39,10 +40,3 @@ let system: TinyEventStore.Interfaces.System<_, _, _, _> =
         | _ -> false
 
   }
-
-
-
-
-
-// let x = (inmemStore :> IEventStore<_, _>).Apply([])
-// let x = inmemStore.Apply([])
