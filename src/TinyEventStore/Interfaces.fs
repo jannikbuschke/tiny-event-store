@@ -119,6 +119,8 @@ type EventContext =
 
 type WrapEventDetails<'ed, 'e> = EventContext -> 'ed -> 'e
 
+type OnCommittingEventHandler<'a, 'b, 'c, 'ctx> = 'ctx -> AppendEventsResult<'a, 'b, 'c> -> Task
+
 module Core =
 
   let error details message =
@@ -164,11 +166,12 @@ module Core =
   let appendEvents
     (system: System<'state, 'e, 'ed, 'c>)
     (store: IEventStorage<'id, 'stream, 'state, 'e, 'c>)
+    (onCommitting: OnCommittingEventHandler<_, _, _, _> seq)
     (f: WrapEventDetails<'ed, 'e>)
     (ts: DateTimeOffset)
     (id: 'id)
     (events: 'ed list)
-    // CausationId
+    (ctx: 'ctx)
     =
     match events with
     | [] ->
@@ -212,6 +215,8 @@ module Core =
 
       let commitNewEvents (appendEventsResult: AppendEventsResult<_, _, _>) =
         taskResult {
+          for handler in onCommitting do
+            do! handler ctx appendEventsResult
           do! store.Commit(appendEventsResult)
           return appendEventsResult
         }
@@ -229,9 +234,11 @@ module Core =
   let applyCommand
     (system: System<'state, 'e, 'ed, 'c>)
     (storage: IEventStorage<'id, 'stream, 'state, 'e, 'c>)
+    (onCommitting: OnCommittingEventHandler<_, _, _, _> seq)
     (f: WrapEventDetails<'ed, 'e>)
     (id: 'id)
     (c: 'c :> ICommand)
+    (ctx: 'ctx)
     =
     taskResult {
       let! rehydrationResult = rehydrate system.aggregate storage id
@@ -251,10 +258,11 @@ module Core =
         )
 
       let events = system.decide state0 c
-      return! appendEvents system storage f c.TimeStamp id events
+      return! appendEvents system storage onCommitting f c.TimeStamp id events ctx
     }
 
 type Subscription<'id, 'state, 'e, 'ctx> = 'ctx -> AppendEventsResult<'id, 'state, 'e> -> Task<unit>
+
 
 type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
   when 'state: equality
@@ -265,8 +273,8 @@ type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
   and 'c :> ICommand>
   (
     system: System<'state, 'e, 'ed, 'c>,
-    // store: IEventStorage<'id, 'stream, 'state, 'e, 'c>,
     wrapper: WrapEventDetails<'ed, 'e>,
+    onCommitting: OnCommittingEventHandler<_, _, _, _> seq,
     subscriptions: Subscription<'id, 'state, 'e, 'ctx> list
   ) =
   member _.Rehydrate(store: IEventStorage<_, _, _, _, _>, id) =
@@ -274,7 +282,7 @@ type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
 
   member _.ApplyEvents(store: IEventStorage<_, _, _, _, _>, id, eventDetails: 'ed list, ts, ctx: 'ctx) =
     taskResult {
-      let! result = Core.appendEvents system store wrapper ts id eventDetails
+      let! result = Core.appendEvents system store onCommitting wrapper ts id eventDetails ctx
       let! result = result
       for subscription in subscriptions do
         do! subscription ctx result
@@ -284,7 +292,7 @@ type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
 
   member _.ApplyCommand(store: IEventStorage<_, _, _, _, _>, id, command, ctx: 'ctx) =
     taskResult {
-      let! result = Core.applyCommand system store wrapper id command
+      let! result = Core.applyCommand system store onCommitting wrapper id command ctx
       let! result = result
       for subscription in subscriptions do
         do! subscription ctx result
