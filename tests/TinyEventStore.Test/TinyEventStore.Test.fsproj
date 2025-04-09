@@ -35,6 +35,8 @@
         <Compile Include="theater\Types.fs" />
         <Compile Include="theater\Aggregate.fs" />
         <Compile Include="theater\Decider.fs" />
+        <Compile Include="theater\store.fs" />
+        <Compile Include="theater\tests.projections.fs" />
         <Compile Include="theater\tests.fs" />
 
         <Compile Include="UserManagement\Types.fs" />
@@ -96,5 +98,9 @@
       <ProjectReference Include="..\..\src\TinyEventStore.Ef\TinyEventStore.Ef.fsproj" />
       <ProjectReference Include="..\..\src\TinyEventStore\TinyEventStore.fsproj" />
     </ItemGroup>
+
+    <!-- <ItemGroup> -->
+    <!--   <Compile Include="PureDeps\Experiment.fs" /> -->
+    <!-- </ItemGroup> -->
 
 </Project>
