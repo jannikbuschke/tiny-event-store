@@ -15,7 +15,7 @@ type IEfProjection<'id, 'state, 'event, 'header, 'Db when 'Db :> DbContext> =
 type EfProjection<'id, 'state, 'event, 'header, 'a, 'Db when 'Db :> DbContext and 'a: not struct>
   (f: OperationResult<'id, 'state, 'event, 'header> -> 'a) =
   interface IEfProjection<'id, 'state, 'event, 'header, 'Db> with
-    member _.Apply (ctx) (op) =
+    member _.Apply ctx op =
       let db = ctx.GetRequiredService<'Db>()
       let dbOp0 = op |> getDefaultDbOperation
       let dbOp = dbOp0 |> mapToEfContextOperation db

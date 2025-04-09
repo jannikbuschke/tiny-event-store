@@ -38,12 +38,11 @@ module Seq =
 
 type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
   when 'stream :> IStream
+  and 'db :> DbContext
   and 'event :> IEvent
-  and
-  // and 'event: not struct
-  'stream: not struct
+  and 'stream: not struct
   and 'streamId: equality
-  and 'streamIdRaw: equality>(db: DbContext, options: EventStorageOptions<'streamId, 'streamIdRaw, _, _, _>) =
+  and 'streamIdRaw: equality>(db: 'db, options: EventStorageOptions<'streamId, 'streamIdRaw, _, _, _>) =
 
   let eventConverter = options.Event
   let streamConverter = options.Stream
@@ -60,6 +59,8 @@ type EfStorage<'streamId, 'streamIdRaw, 'stream, 'state, 'event, 'c, 'db
   let toEventDto event = event |> (eventConverter |> fst)
 
   let converToList events = events |> Seq.map toEvent |> Seq.toList
+
+  member _.Db = db
 
   member _.StreamSet() =
     // printfn "Stream %A" (typeof<'streamIdRaw>)
