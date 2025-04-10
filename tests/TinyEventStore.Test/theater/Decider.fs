@@ -1,7 +1,6 @@
 module Theater.Decider
 
 open TinyEventStore.Interfaces
-open System
 
 let decideDetails state cmd =
   match cmd with
@@ -23,7 +22,7 @@ let decide: TinyEventStore.Interfaces.Decide<_, _, _> =
     |> List.singleton
 
 // let system: TinyEventStore.Interfaces.System<TheaterState, TheaterEvent, TheaterEventDetails, TheaterCommand> =
-let system: TinyEventStore.Interfaces.System<_, _, _, _> =
+let system: TinyEventStore.Interfaces.System<_, TheaterEventEnvelope,TheaterEventDetails, _> =
   {
     aggregate = Aggregate.aggregate
     projections = []

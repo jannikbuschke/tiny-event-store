@@ -4,21 +4,34 @@ open System
 open TinyEventStore.Interfaces
 
 [<RequireQualifiedAccess>]
+type TheaterStreamId =
+  | TheaterStreamId of Guid
+  static member New() = TheaterStreamId(Guid.NewGuid())
+  static member ToRaw(TheaterStreamId id) = id
+  static member FromRaw id = TheaterStreamId id
+  static member FromRawString(input: string) = input |> Guid.Parse |> TheaterStreamId
+  static member Converter = TheaterStreamId.ToRaw, TheaterStreamId.FromRaw
+
+[<RequireQualifiedAccess>]
 type TheaterEventDetails =
   | Created of string
   | Updated of string
   | Deleted
 
-type TheaterEvent =
-  {
-    Version: V
-    TimeStamp: DateTimeOffset
-    Data: TheaterEventDetails
-  }
+type TheaterEventEnvelope = TinyEventStore.EfStorage.EventEnvelope<TheaterStreamId,TheaterEventDetails>
 
-  interface IEvent with
-    member this.Version = this.Version
-    member this.TimeStamp = this.TimeStamp
+// type TheaterEvent =
+//   {
+//     EventId: Guid
+//     StreamId: TheaterStreamId
+//     Version: V
+//     TimeStamp: DateTimeOffset
+//     Data: TheaterEventDetails
+//   }
+//
+//   interface IEvent with
+//     member this.Version = this.Version
+//     member this.TimeStamp = this.TimeStamp
 
 type TheaterStream =
   {

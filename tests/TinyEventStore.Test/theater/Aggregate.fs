@@ -3,8 +3,8 @@ module Theater.Aggregate
 open System
 
 let evolve: TinyEventStore.Interfaces.Evolve<_, _> =
-  fun state (e: TheaterEvent) ->
-    match e.Data with
+  fun state (e: TheaterEventEnvelope) ->
+    match e.Details with
     | TheaterEventDetails.Created name ->
       {
         Name = name

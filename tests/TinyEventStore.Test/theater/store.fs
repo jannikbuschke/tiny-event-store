@@ -5,25 +5,6 @@ open TinyEventStore.Interfaces
 open TinyEventStore.EfStorage
 open Microsoft.EntityFrameworkCore
 
-[<RequireQualifiedAccess>]
-type TheaterStreamId =
-  | TheaterStreamId of Guid
-
-  static member New() = TheaterStreamId(Guid.NewGuid())
-  static member ToRaw(TheaterStreamId id) = id
-  static member FromRaw(id) = TheaterStreamId(id)
-  static member FromRawString(input: string) = input |> Guid.Parse |> TheaterStreamId
-  static member Converter = TheaterStreamId.ToRaw, TheaterStreamId.FromRaw
-
-[<RequireQualifiedAccess>]
-type TheaterEventId =
-  | TheaterEventId of Guid
-
-  static member New() = TheaterEventId(Guid.NewGuid())
-  static member ToRaw(TheaterEventId id) = id
-  static member FromRaw(id) = TheaterEventId(id)
-  static member Converter = TheaterEventId.ToRaw, TheaterEventId.FromRaw
-
 let createStream: StreamCreator<_, _, _, _> =
   fun appendEventsResult ->
     {
@@ -41,49 +22,49 @@ let updateStream: StreamUpdater<_, _, _, _> =
         Name = ""
     }
 
-// let inmemStorage =
-//   // InmemEventStorage.newStorage<Guid, TheaterStream, TheaterState, TheaterEvent, TheaterCommand> (
-//   InmemEventStorage.newStorage<_, _, _, _, _> (createStream, updateStream)
-
 type Discriminator =
   | Theater = 1
 
-let efStorageOptions: EventStorageOptions<_, _, _, TheaterState, _> =
+let efStorageOptions: EventStorageOptions<_, _> =
   {
     StreamId = TheaterStreamId.Converter
-    Stream =
-      (fun (stream, id, version) -> Dtos.StreamDto(Id = (id |> TheaterStreamId.ToRaw), Version = version)),
-      (fun x ->
-        {
-          TheaterStream.Version = x.Version
-          Created = x.Created
-          Updated = x.Modified
-          Name = ""
-        },
-        x.Id |> TheaterStreamId.FromRaw,
-        x.Version
-      )
-    Event =
-      (fun (event: TheaterEvent, id, version) ->
-        Dtos.EventDto(
-          StreamId = (id |> TheaterStreamId.ToRaw),
-          Version = version,
-          Data = event,
-          Timestamp = event.TimeStamp
-        )
-      ),
-      (fun x ->
-        {
-          TheaterEvent.Version = x.Version
-          TimeStamp = x.Timestamp
-          Data = x.Data.Data
-        },
-        x.StreamId |> TheaterStreamId.FromRaw,
-        x.Version
-      )
+    // Stream =
+    //   (fun (stream, id, version) ->
+    //     // Dtos.StreamDto.Create(id |> TheaterStreamId.ToRaw, version,false,stream.Created,stream.Updated,Children=[])),
+    //     Dtos.StreamDto(Id = (id |> TheaterStreamId.ToRaw), Version = version)),
+    //   (fun x ->
+    //     {
+    //       TheaterStream.Version = x.Version
+    //       Created = x.Created
+    //       Updated = x.Modified
+    //       Name = ""
+    //     },
+    //     x.Id |> TheaterStreamId.FromRaw,
+    //     x.Version
+    //   )
+    // Event =
+    //   (fun (event: TheaterEventDetails, id, version) ->
+    //     Dtos.EventDto(
+    //       StreamId = (id |> TheaterStreamId.ToRaw),
+    //       Version = version,
+    //       Data = event,
+    //       Timestamp = event.TimeStamp
+    //     )
+    //   ),
+    //   (fun x ->
+    //     {
+    //       TheaterEvent.Version = x.Version
+    //       EventId = x.EventId
+    //       StreamId = x.StreamId |> TheaterStreamId.FromRaw
+    //       TimeStamp = x.Timestamp
+    //       Data = x.Data.Data
+    //     },
+    //     x.StreamId |> TheaterStreamId.FromRaw,
+    //     x.Version
+    //   )
     TableNamePrefix = "theater"
-    CreateStream = createStream
-    UpdateStream = updateStream
+    // CreateStream = createStream
+    // UpdateStream = updateStream
   }
 
 [<CLIMutable>]
@@ -102,10 +83,9 @@ type EventDbContext(options) =
 
   member this.ListItems() = this.Set<StateListItem>()
 
-  // member this.GetStorage(system: System<_, _, _, _>) = ()
   override _.OnModelCreating(modelBuilder: ModelBuilder) : unit =
     modelBuilder.Entity<StateListItem>(fun entity ->
-      entity.ToTable("list") |> ignore
+      entity.ToTable "list" |> ignore
       entity.Property(_.Id).HasConversion(TheaterStreamId.ToRaw, TheaterStreamId.FromRaw)
       |> ignore
     )
@@ -115,7 +95,7 @@ type EventDbContext(options) =
       modelBuilder.AddSharedEventStorage<Guid, Guid, Discriminator>(
         "theater_shared",
         fun o ->
-          o.WithStreamType<TheaterStreamId, Guid, TheaterEventId, Guid, TheaterStream, TheaterEvent>(
+          o.WithStreamType<TheaterStreamId, Guid,   TheaterStream, TheaterEventDetails>(
             Discriminator.Theater,
             None
           )

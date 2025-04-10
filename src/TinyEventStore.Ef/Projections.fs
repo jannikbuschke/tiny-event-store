@@ -29,7 +29,7 @@ let applyEvents
   =
   let streamId = streamChunk.StreamId
 
-  let (state, stream) =
+  let state, stream =
     if memory.ContainsKey streamId then
       memory.Item streamId
     else
@@ -43,7 +43,7 @@ let applyEvents
 
       originalAggregate.zero, stream
 
-  let newEvents = (streamChunk.Events |> List.map Storable.toEvent)
+  let newEvents = streamChunk.Events |> List.map Storable.toEvent
 
   let result =
     applyEvents originalAggregate state stream newEvents :> OperationResult<'id, 'state, 'event, 'header>

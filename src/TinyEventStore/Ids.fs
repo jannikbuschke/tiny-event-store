@@ -1,7 +1,8 @@
-﻿namespace TinyEventStore
+namespace TinyEventStore
 
 open System
 
+[<RequireQualifiedAccess>]
 type EventId =
   | EventId of Guid
 
@@ -21,6 +22,7 @@ type CorrelationId =
   static member ToRawValue(CorrelationId rawValue) = rawValue
   static member FromRawValue(rawValue: Guid) = CorrelationId rawValue
 
+[<RequireQualifiedAccess>]
 type CommandId =
   | CommandId of Guid
 
