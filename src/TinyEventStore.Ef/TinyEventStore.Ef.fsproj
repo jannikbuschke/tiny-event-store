@@ -31,7 +31,9 @@
         <Compile Include="Projections.fs" />
         <Compile Include="EfStore.fs" />
         <Compile Include="EfStorage/dtos.fs"/>
+        <Compile Include="EfStorage/SimpleDtos.fs"/>
         <Compile Include="EfStorage/EfStorage.fs"/>
+        <Compile Include="EfStorage/EfSimpleStorage.fs"/>
         <Compile Include="EfStorage/Projections.fs"/>
     </ItemGroup>
 

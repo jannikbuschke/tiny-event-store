@@ -1,21 +1,21 @@
 # TinyEventStore
 
-[Enter useful description for TinyEventStore]
+to publish use nuke Publish
 
 ---
 
 ## Builds
 
-GitHub Actions |
-:---: |
-[![GitHub Actions](https://github.com/jannikbuschke/TinyEventStore/workflows/Build%20main/badge.svg)](https://github.com/jannikbuschke/TinyEventStore/actions?query=branch%3Amain) |
-[![Build History](https://buildstats.info/github/chart/jannikbuschke/TinyEventStore)](https://github.com/jannikbuschke/TinyEventStore/actions?query=branch%3Amain) |
+|                                                                                   GitHub Actions                                                                                   |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| [![GitHub Actions](https://github.com/jannikbuschke/TinyEventStore/workflows/Build%20main/badge.svg)](https://github.com/jannikbuschke/TinyEventStore/actions?query=branch%3Amain) |
+|         [![Build History](https://buildstats.info/github/chart/jannikbuschke/TinyEventStore)](https://github.com/jannikbuschke/TinyEventStore/actions?query=branch%3Amain)         |
 
 ## NuGet
 
-Package | Stable | Prerelease
---- | --- | ---
-TinyEventStore | [![NuGet Badge](https://buildstats.info/nuget/TinyEventStore)](https://www.nuget.org/packages/TinyEventStore/) | [![NuGet Badge](https://buildstats.info/nuget/TinyEventStore?includePreReleases=true)](https://www.nuget.org/packages/TinyEventStore/)
+| Package        | Stable                                                                                                         | Prerelease                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| TinyEventStore | [![NuGet Badge](https://buildstats.info/nuget/TinyEventStore)](https://www.nuget.org/packages/TinyEventStore/) | [![NuGet Badge](https://buildstats.info/nuget/TinyEventStore?includePreReleases=true)](https://www.nuget.org/packages/TinyEventStore/) |
 
 ---
 
@@ -29,21 +29,18 @@ or
 
 - [VSCode Dev Container](https://code.visualstudio.com/docs/remote/containers)
 
-
 ---
 
 ### Environment Variables
 
-- `CONFIGURATION` will set the [configuration](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build?tabs=netcore2x#options) of the dotnet commands.  If not set, it will default to Release.
+- `CONFIGURATION` will set the [configuration](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build?tabs=netcore2x#options) of the dotnet commands. If not set, it will default to Release.
   - `CONFIGURATION=Debug ./build.sh` will result in `-c` additions to commands such as in `dotnet build -c Debug`
-- `ENABLE_COVERAGE` Will enable running code coverage metrics.  AltCover can have [severe performance degradation](https://github.com/SteveGilham/altcover/issues/57) so code coverage evaluation are disabled by default to speed up the feedback loop.
+- `ENABLE_COVERAGE` Will enable running code coverage metrics. AltCover can have [severe performance degradation](https://github.com/SteveGilham/altcover/issues/57) so code coverage evaluation are disabled by default to speed up the feedback loop.
   - `ENABLE_COVERAGE=1 ./build.sh` will enable code coverage evaluation
-
 
 ---
 
 ### Building
-
 
 ```sh
 > build.cmd <optional buildtarget> // on windows
@@ -70,7 +67,7 @@ src/TinyEventStore/bin/
 
 - `Clean` - Cleans artifact and temp directories.
 - `DotnetRestore` - Runs [dotnet restore](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-restore?tabs=netcore2x) on the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019).
-- [`DotnetBuild`](#Building) - Runs [dotnet build](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build?tabs=netcore2x) on the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019).
+- [`DotnetBuild`](#building) - Runs [dotnet build](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build?tabs=netcore2x) on the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019).
 - `FSharpAnalyzers` - Runs [BinaryDefense.FSharp.Analyzers](https://github.com/BinaryDefense/BinaryDefense.FSharp.Analyzers).
 - `DotnetTest` - Runs [dotnet test](https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-test?tabs=netcore21) on the [solution file](https://docs.microsoft.com/en-us/visualstudio/extensibility/internals/solution-dot-sln-file?view=vs-2019).
 - `GenerateCoverageReport` - Code coverage is run during `DotnetTest` and this generates a report via [ReportGenerator](https://github.com/danielpalme/ReportGenerator).
@@ -85,10 +82,9 @@ src/TinyEventStore/bin/
 - `FormatCode` - Runs [Fantomas](https://github.com/fsprojects/fantomas) on the solution file.
 - `CheckFormatCode` - Runs [Fantomas --check](https://fsprojects.github.io/fantomas/docs/end-users/FormattingCheck.html) on the solution file.
 - `BuildDocs` - Generates [Documentation](https://fsprojects.github.io/FSharp.Formatting) from `docsSrc` and the [XML Documentation Comments](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/xmldoc/) from your libraries in `src`.
-- `WatchDocs` - Generates documentation and starts a webserver locally.  It will rebuild and hot reload if it detects any changes made to `docsSrc` files, or libraries in `src`.
+- `WatchDocs` - Generates documentation and starts a webserver locally. It will rebuild and hot reload if it detects any changes made to `docsSrc` files, or libraries in `src`.
 
 ---
-
 
 ### Releasing
 
@@ -116,26 +112,30 @@ Here's an example of adding an "Unreleased" section to a `CHANGELOG.md` with a `
 ## [Unreleased]
 
 ### Added
-- Does cool stuff!
+
+-   Does cool stuff!
 
 ### Fixed
-- Fixes that silly oversight
+
+-   Fixes that silly oversight
 
 ## [0.1.0] - 2017-03-17
+
 First release
 
 ### Added
-- This release already has lots of features
+
+-   This release already has lots of features
 
 [Unreleased]: https://github.com/jannikbuschke/TinyEventStore/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jannikbuschke/TinyEventStore/releases/tag/v0.1.0
 ```
 
 - You can then use the `GitRelease` target, specifying the version number either in the `RELEASE_VERSION` environment
-  variable, or else as a parameter after the target name.  This will:
+    variable, or else as a parameter after the target name. This will:
   - update `CHANGELOG.md`, moving changes from the `Unreleased` section into a new `0.2.0` section
     - if there were any prerelease versions of 0.2.0 in the changelog, it will also collect their changes into the final 0.2.0 entry
-  - make a commit bumping the version:  `Bump version to 0.2.0` and adds the new changelog section to the commit's body
+  - make a commit bumping the version: `Bump version to 0.2.0` and adds the new changelog section to the commit's body
   - push a git tag
 
 macOS/Linux Parameter:
@@ -153,7 +153,6 @@ RELEASE_VERSION=0.2.0 ./build.sh Release
 - The [Github Action](https://github.com/jannikbuschke/TinyEventStore/blob/main/.github/workflows/publish.yml) will handle the new tag:
   - publish the package to NuGet
   - create a GitHub release for that git tag, upload release notes and NuGet packages to GitHub
-
 
 ### Releasing Documentation
 
