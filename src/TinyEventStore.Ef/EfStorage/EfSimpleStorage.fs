@@ -114,7 +114,7 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
     member this.LoadAllEvents id = this.LoadEventRange(id, 0, 0)
 
     member this.Commit v =
-      printfn "commit\n%A" v
+      // printfn "commit\n%A" v
       let addStream v =
         taskResult {
           let streamDto =
@@ -129,7 +129,7 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
             stream
             |> Result.requireSome (EventStoreError.New(EventStoreErrorDetails.NotFound, None))
 
-          printfn "Streamid %A" stream.Id
+          // printfn "Streamid %A" stream.Id
           stream.Modified <- v.TimeStamp
           let existingEntry = db.Entry stream
           if box existingEntry = null || existingEntry.State = EntityState.Detached then

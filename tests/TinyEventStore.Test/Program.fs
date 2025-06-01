@@ -11,7 +11,8 @@ let all =
       // Expecto.Tests.testList "delete" Theater.Tests.tests
       // Expecto.Tests.testList "projections" Theater.ProjectionTests.tests
       // Expecto.Tests.testList "tests" Theater.Tests.tests
-      Expecto.Tests.testList "tests" Theater2.Tests2.tests
+      Expecto.Tests.testList "simple-tests" Theater2.Tests2.tests
+      Expecto.Tests.testList "simple-projections" Theater2.ProjectionTests.tests
     ]
 
 [<EntryPoint>]

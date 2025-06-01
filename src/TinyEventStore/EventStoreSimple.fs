@@ -7,13 +7,15 @@ open FsToolkit.ErrorHandling
 
 type Subscription<'state, 'e, 'ctx> = 'ctx -> AppendEventsResult<'state, 'e> -> Task<unit>
 
+// this class is propably not needed
+// just a function returning a function that accepts ctx or two, one for apply event, one for applyCommand
 type EventStore<'state, 'e, 'c, 'ctx>
   (
     system: EventStoreDefinition<'state, 'e, 'c>,
     onCommitting: OnCommittingEventHandler<_, _, 'ctx> seq,
     subscriptions: Subscription<'state, 'e, 'ctx> list
   ) =
-  let applyEvents, applyCommand = createHandler system
+  let handler ctx = createHandler system onCommitting ctx
   member _.Rehydrate(store: ISimpleEventStorage<_, _, _>, id) =
     rehydrate system.aggregate store system.getEventVersion id
 
@@ -27,6 +29,7 @@ type EventStore<'state, 'e, 'c, 'ctx>
       ?causation: TinyEventStore.Causation
     ) =
     taskResult {
+      let applyEvents, _ = handler ctx
       let! result = applyEvents store (id, ts) events
       for subscription in subscriptions do
         do! subscription ctx result
@@ -35,6 +38,7 @@ type EventStore<'state, 'e, 'c, 'ctx>
 
   member _.ApplyCommand(store: ISimpleEventStorage<'state, 'e, 'c>, (id, dt), command, ctx: 'ctx) =
     taskResult {
+      let _, applyCommand = handler ctx
       let! result = applyCommand store (id, dt) command
 
       for subscription in subscriptions do

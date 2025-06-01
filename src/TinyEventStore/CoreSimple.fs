@@ -51,7 +51,11 @@ let rehydrate
     return result
   }
 
-let createHandler (system: EventStoreDefinition<_, _, _>) =
+let createHandler
+  (system: EventStoreDefinition<_, _, _>)
+  (onCommitting: OnCommittingEventHandler<_, _, 'ctx> seq)
+  (ctx: 'ctx)
+  =
   let getStateAndVersion (hydrationResult: HydrationResult<_, _>) =
     match hydrationResult with
     | HydrationResult.NotStarted -> system.aggregate.zero, V.zero
@@ -138,8 +142,8 @@ let createHandler (system: EventStoreDefinition<_, _, _>) =
 
   let commitNewEvents (store: ISimpleEventStorage<_, _, _>) (appendEventsResult: AppendEventsResult<_, _>) =
     taskResult {
-      // for handler in onCommitting do
-      //   do! handler ctx appendEventsResult
+      for handler in onCommitting do
+        do! handler ctx appendEventsResult
       // let causationName = causation |> Option.map _.MessageName
       logger.debug (Log.setMessage "Committing events")
       do! store.Commit appendEventsResult
@@ -195,15 +199,18 @@ let createHandler (system: EventStoreDefinition<_, _, _>) =
           Version = version0
         }
 
-      let! decideResult =
+      let! _ =
         system.decide ctx state0 c
         |> Result.mapError (fun msg -> EventStoreError.New(EventStoreErrorDetails.DecideError msg, None))
+
       let createEvents ctx = system.decide ctx state0 c
       let! x = handleAppendEvents ts streamId createEvents hydrationResult
       let! commitResult = commitNewEvents store x
       if commitResult.Id = Guid.Empty then
         failwith "empty guid"
+
       return commitResult
+
     }
 
   applyEvents, applyCommand

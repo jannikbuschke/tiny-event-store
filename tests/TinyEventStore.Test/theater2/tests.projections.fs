@@ -4,12 +4,13 @@ open TinyEventStore.Check
 open Expecto
 open System
 open Decider
-open TinyEventStore.Interfaces
-open TinyEventStore.EfStorage
+open TinyEventStore.InterfacesSimple
+open TinyEventStore.EfSimpleStorage
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open System.IO
 open Store
+open TinyEventStore.Simple
 
 let createServices name =
   let services = ServiceCollection()
@@ -30,19 +31,16 @@ let createServices name =
 
 let getStorage (services: IServiceProvider) =
   let db = services.GetService<EventDbContext>()
-  EfStorage<TheaterStreamId, Guid, TheaterState, TheaterEventDetails, TheaterCommand, EventDbContext>(
-    db,
-    efStorageOptions
-  )
+  EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(db, efStorageOptions)
 
-let printSubscription: Subscription<_, _, _, _> =
+let printSubscription: Subscription<_, _, _> =
   fun _ x ->
     task {
       printfn "subscription %A" x
       return ()
     }
 
-let deriveListItem (eventResult: AppendEventsResult<_, TheaterState, _>) =
+let deriveListItem (eventResult: AppendEventsResult<TheaterState, _>) =
   {
     Id = eventResult.Id
     Name = eventResult.State.Name
@@ -57,16 +55,15 @@ let deriveListItem (eventResult: AppendEventsResult<_, TheaterState, _>) =
 //     return ()
 //   }
 
-let listItemProjection: Projection.DeriveProjection<_, _, _, _, _> =
+let listItemProjection: Projection.DeriveProjection<_, TheaterEvent, _, _> =
   {
     Derive = deriveListItem
-    ShouldDelete =
-      fun (x: AppendEventsResult<_, _, TheaterEventEnvelope>) -> x.Events |> List.exists _.Details.IsDeleted
+    ShouldDelete = fun x -> x.Events.List |> List.exists _.Details.IsDeleted
   }
 
 let ts = DateTimeOffset.Parse "2025-02-02 10:15:00"
 
-let immediateProjectionsSubscription: OnCommittingEventHandler<_, _, _, _> =
+let immediateProjectionsSubscription: OnCommittingEventHandler<_, _, _> =
   fun (ctx: IServiceProvider) x ->
     task {
       let db = ctx.GetRequiredService<EventDbContext>()
@@ -74,22 +71,7 @@ let immediateProjectionsSubscription: OnCommittingEventHandler<_, _, _, _> =
     }
 
 let store subscription =
-  EventStore(
-    system,
-    (fun ctx details ->
-      {
-        Version = ctx.Version
-        Details = details
-        TimeStamp = ts
-        // Data = details
-        EventId = ctx.EventId
-        StreamId = ctx.StreamId
-        Causation = ctx.Causation
-      }
-    ),
-    [ immediateProjectionsSubscription ],
-    subscription
-  )
+  EventStore(system, [ immediateProjectionsSubscription ], subscription)
 
 open FsToolkit.ErrorHandling
 
@@ -105,56 +87,82 @@ let createContext id =
   let storage = getStorage scope.ServiceProvider
   scope, storage
 
+let createEvents details (ctx: CreateEventsContext) =
+  details
+  |> List.mapi (fun i detail ->
+    {
+      TheaterEvent.StreamId = ctx.StreamId
+      Id = Guid.CreateVersion7(ctx.TimeStamp.AddMicroseconds i)
+      Details = detail
+      Version = V.incrementBy (ctx.Version, i + 1)
+      TimeStamp = ctx.TimeStamp
+    }
+  )
+  |> NonEmptyList.UnsafeFrom
+
 let tests =
   [
 
     testTask "Event after delete should not have an effect" {
       let store = store []
-      let id =
-        "cca1604d-81c6-4612-8008-ab28e4d92d0b" |> Guid.Parse |> TheaterStreamId.FromRaw
+      let id = "cca1604d-81c6-4612-8008-ab28e4d92d0b" |> Guid.Parse
       let scope, storage = createContext id
       do!
         store.ApplyEvents(
           storage,
           id,
-          [ TheaterEventDetails.Created "Hello World"; TheaterEventDetails.Deleted ],
+          createEvents [ TheaterEventDetails.Created "Hello World"; TheaterEventDetails.Deleted ],
+          ts,
           scope.ServiceProvider
         )
       let db = storage.Db
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 0 @>
       let scope, storage = createContext id
-      do! store.ApplyEvents(storage, id, [ TheaterEventDetails.Updated "Hello World 2" ], scope.ServiceProvider)
+      do!
+        store.ApplyEvents(
+          storage,
+          id,
+          createEvents [ TheaterEventDetails.Updated "Hello World 2" ],
+          ts,
+          scope.ServiceProvider
+        )
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 0 @>
     }
 
     testTask "Deleted should delete projection" {
       let store = store []
-      let id =
-        "a521feb3-ff9a-4c20-b72d-74e874f262ff" |> Guid.Parse |> TheaterStreamId.FromRaw
+      let id = "a521feb3-ff9a-4c20-b72d-74e874f262ff" |> Guid.Parse
       let scope, storage = createContext id
-      do! store.ApplyEvents(storage, id, [ TheaterEventDetails.Created "Hello World" ], scope.ServiceProvider)
+      do!
+        store.ApplyEvents(
+          storage,
+          id,
+          createEvents [ TheaterEventDetails.Created "Hello World" ],
+          ts,
+          scope.ServiceProvider
+        )
       let db = storage.Db
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 1 @>
       let scope, storage = createContext id
-      do! store.ApplyEvents(storage, id, [ TheaterEventDetails.Deleted ], scope.ServiceProvider)
+      do! store.ApplyEvents(storage, id, createEvents [ TheaterEventDetails.Deleted ], ts, scope.ServiceProvider)
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 0 @>
     }
 
     testTask "Initial events with deletion should not create list projection" {
       let store = store []
-      let id =
-        "5c94b2b8-4569-430f-b9e2-576aa2c4cbba" |> Guid.Parse |> TheaterStreamId.FromRaw
+      let id = "5c94b2b8-4569-430f-b9e2-576aa2c4cbba" |> Guid.Parse
       let scope, storage = createContext id
 
       do!
         store.ApplyEvents(
           storage,
           id,
-          [ TheaterEventDetails.Created "Hello World"; TheaterEventDetails.Deleted ],
+          createEvents [ TheaterEventDetails.Created "Hello World"; TheaterEventDetails.Deleted ],
+          ts,
           scope.ServiceProvider
         )
 
@@ -171,18 +179,19 @@ let tests =
 
     testTask "Initial events should create list projection" {
       let store = store []
-      let id =
-        "bb994f4b-5026-4234-8b48-9ee53d94d239" |> Guid.Parse |> TheaterStreamId.FromRaw
+      let id = "bb994f4b-5026-4234-8b48-9ee53d94d239" |> Guid.Parse
       let scope, storage = createContext id
 
       do!
         store.ApplyEvents(
           storage,
           id,
-          [
-            TheaterEventDetails.Created "Hello World"
-            TheaterEventDetails.Updated "Hello World 2"
-          ],
+          createEvents
+            [
+              TheaterEventDetails.Created "Hello World"
+              TheaterEventDetails.Updated "Hello World 2"
+            ],
+          ts,
           scope.ServiceProvider
         )
 
@@ -202,11 +211,17 @@ let tests =
 
     testTask "Initial event should create list projection" {
       let store = store []
-      let id =
-        "f1e0cdd0-b9c1-459a-b750-dfe6a42263cb" |> Guid.Parse |> TheaterStreamId.FromRaw
+      let id = "f1e0cdd0-b9c1-459a-b750-dfe6a42263cb" |> Guid.Parse
       let scope, storage = createContext id
 
-      do! store.ApplyEvents(storage, id, [ TheaterEventDetails.Created "Hello World" ], scope.ServiceProvider)
+      do!
+        store.ApplyEvents(
+          storage,
+          id,
+          createEvents [ TheaterEventDetails.Created "Hello World" ],
+          ts,
+          scope.ServiceProvider
+        )
 
       let db = storage.Db
       let! listItems = db.ListItems().ToListAsync() |> Task.map Seq.toList

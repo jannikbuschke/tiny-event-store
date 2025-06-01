@@ -141,4 +141,4 @@ type ISimpleEventStorage<'state, 'event, 'command> =
   abstract member Commit: AppendEventsResult<'state, 'event> -> Task<Result<unit, EventStoreError>>
   abstract member LoadStream: Guid -> Task<Result<IStreamDbo, EventStoreError>>
 
-type OnCommittingEventHandler<'b, 'c, 'ctx> = 'ctx -> AppendEventsResult<'b, 'c> -> Task
+type OnCommittingEventHandler<'state, 'event, 'ctx> = 'ctx -> AppendEventsResult<'state, 'event> -> Task

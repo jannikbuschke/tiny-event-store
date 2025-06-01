@@ -93,7 +93,7 @@ let tests =
       expect <@ ts1 = ts2 @>
     }
 
-    ftestTask "subscription should be invoked" {
+    testTask "subscription should be invoked" {
       let id = Guid.Parse "e53991ef-6969-4012-94db-7a005e962e50"
       let storage, ctx = createContext id
       let result = ResizeArray()
