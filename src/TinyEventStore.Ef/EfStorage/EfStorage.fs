@@ -18,33 +18,38 @@ type EventEnvelope<'id, 'details> =
     Details: 'details
     Version: V
     TimeStamp: DateTimeOffset
-    CausationId: TinyEventStore.CausationId option
+    Causation: TinyEventStore.Causation option
   }
+
   interface IEvent with
     member this.TimeStamp = this.TimeStamp
     member this.Version = this.Version
 
 type Stream<'id> =
   {
-  Id: 'id
-  Version: V
-  Created: DateTimeOffset
-  Modified: DateTimeOffset
+    Id: 'id
+    Version: V
+    Created: DateTimeOffset
+    Modified: DateTimeOffset
   }
-  interface IStream with
-    member this.Version=this.Version
-    member this.Modified=this.Modified
-    member this.Created=this.Created
 
-type EventStorageOptions<'streamId, 'streamIdRaw>=
+  interface IStream with
+    member this.Version = this.Version
+    member this.Modified = this.Modified
+    member this.Created = this.Created
+
+type EventStorageOptions<'streamId, 'streamIdRaw> =
   {
     TableNamePrefix: string
     StreamId: Converter<'streamId, 'streamIdRaw>
-    // Stream: Converter<'stream * 'streamId * V, Dtos.StreamDto<'streamIdRaw, 'eventDetails>>
-    // Event: Converter<EventEnvelope<'streamId, 'eventDetails>, Dtos.EventDto<'streamIdRaw, 'eventDetails>>
-    // CreateStream: StreamCreator<'streamId, 'stream, 'state, 'eventDetails>
-    // UpdateStream: StreamUpdater<'streamId, 'stream, 'state, 'eventDetails>
+  // Stream: Converter<'stream * 'streamId * V, Dtos.StreamDto<'streamIdRaw, 'eventDetails>>
+  // Event: Converter<EventEnvelope<'streamId, 'eventDetails>, Dtos.EventDto<'streamIdRaw, 'eventDetails>>
+  // CreateStream: StreamCreator<'streamId, 'stream, 'state, 'eventDetails>
+  // UpdateStream: StreamUpdater<'streamId, 'stream, 'state, 'eventDetails>
   }
+
+open TinyEventStore.Log
+open TinyEventStore.Log.Types
 
 module private Helpers =
 
@@ -57,36 +62,44 @@ module private Helpers =
 module Seq =
   let toSeqAsync (q: IQueryable<'t>) = q.ToListAsync()
 
-type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
-  when 'db :> DbContext
-  // and 'eventDetails :> IEvent
-  // and 'stream: not struct
-  and 'streamId: equality
-  and 'streamIdRaw: equality>(db: 'db, options: EventStorageOptions<'streamId, 'streamIdRaw>) =
+module Result =
+  let iterError f x =
+    match x with
+    | Ok _ -> ()
+    | Error e -> f e
 
-  let toRawStreamId  = options.StreamId |> fst
-  let toStreamId  = options.StreamId |> snd
+type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
+  when 'db :> DbContext and 'streamId: equality and 'streamIdRaw: equality>
+  (db: 'db, options: EventStorageOptions<'streamId, 'streamIdRaw>) =
+
+  let logger = LogProvider.getLoggerByName "TinyEventStore.EfStorage"
+  let toRawStreamId = options.StreamId |> fst
+  let toStreamId = options.StreamId |> snd
 
   // let eventConverter = options.Event
-  let toEventEnvelope (dto:Dtos.EventDto<_,_>) =
+  let toEventEnvelope (dto: Dtos.EventDto<_, _>) =
+    // logger.warn(Log.setMessage "to event envelope")|>ignore
+    if box dto = null then
+      failwith "dto is null"
+    else
       {
-        StreamId=(dto.StreamId  |> toStreamId)
-        EventId=dto.EventId|>TinyEventStore.EventId.FromRawValue
-        Details=dto.Data
-        Version=dto.Version
-        TimeStamp=dto.Timestamp
-        CausationId=
-                dto.CausationId
-                |> Option.map(fun x ->
-                  match x.Type with
-                  |Dtos.CausationType.Event ->  x.Id|>TinyEventStore.EventId.FromRawValue|>TinyEventStore.CausationId.EventId
-                  |Dtos.CausationType.Command ->  x.Id|>TinyEventStore.CommandId.FromRawValue |> TinyEventStore.CausationId.CommandId
-                  |_ -> failwith "unknown causationtype"
-                  )
+        StreamId = dto.StreamId |> toStreamId
+        EventId = dto.EventId |> TinyEventStore.EventId.FromRawValue
+        Details = dto.Data
+        Version = dto.Version
+        TimeStamp = dto.Timestamp
+        Causation = None
+      // CausationId=None
+      // dto.CausationId
+      // |> Option.map(fun x ->
+      //   match x.Type with
+      //   |Dtos.CausationType.Event ->  x.Id|>TinyEventStore.EventId.FromRawValue|>TinyEventStore.CausationId.EventId
+      //   |Dtos.CausationType.Command ->  x.Id|>TinyEventStore.CommandId.FromRawValue |> TinyEventStore.CausationId.CommandId
+      //   |_ -> failwith "unknown causationtype"
+      //   )
       }
 
-
-  let toEventDto(e: EventEnvelope<_,_>) =
+  let toEventDto (e: EventEnvelope<_, _>) =
     let streamId = e.StreamId |> toRawStreamId
     let eventId = e.EventId |> TinyEventStore.EventId.ToRawValue
     Dtos.EventDto(
@@ -94,16 +107,19 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
       EventId = eventId,
       Version = e.Version,
       Timestamp = e.TimeStamp,
-      CausationId = (e.CausationId
-         |> Option.map(
-         function
-         | TinyEventStore.CausationId.CommandId v -> Dtos.StorableCausationId(Id = (v |> TinyEventStore.CommandId.ToRawValue), Type = Dtos.CausationType.Command)
-         | TinyEventStore.CausationId.EventId v -> Dtos.StorableCausationId(Id = (v |> TinyEventStore.EventId.ToRawValue), Type = Dtos.CausationType.Event)
-         )),
+      CausationId = None,
+
+      // CausationId = (e.CausationId
+      //    |> Option.map(
+      //    function
+      //    | TinyEventStore.CausationId.CommandId v -> Dtos.StorableCausationId(Id = (v |> TinyEventStore.CommandId.ToRawValue), Type = Dtos.CausationType.Command)
+      //    | TinyEventStore.CausationId.EventId v -> Dtos.StorableCausationId(Id = (v |> TinyEventStore.EventId.ToRawValue), Type = Dtos.CausationType.Event)
+      //   )),
+
       Data = e.Details
     )
 
-  let toStream(dto:Dtos.StreamDto<_,_>)=
+  let toStream (dto: Dtos.StreamDto<_, _>) =
     {
       Id = dto.Id |> toStreamId
       Version = dto.Version
@@ -111,26 +127,18 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
       Modified = dto.Modified
     }
 
-  let toStreamDto(stream: Stream<_>)=
+  let toStreamDto (stream: Stream<_>) =
     Dtos.StreamDto(
-      Id=(stream.Id |> toRawStreamId),
-      Version=stream.Version,
-      Created=stream.Created,
-      Modified=stream.Modified
+      Id = (stream.Id |> toRawStreamId),
+      Version = stream.Version,
+      Created = stream.Created,
+      Modified = stream.Modified
     )
 
-  // let streamConverter = options.Stream
   let idConverter = options.StreamId
 
-  // let toEvent dto =
-  //   dto |> toEventEnvelope
-  //
-  // let toStream dto =
-  //   dto |> toStream
-
-  // let toEventDto event = event |> toEventEnvelope
-
-  let converToList events = events |> Seq.map toEventEnvelope |> Seq.toList
+  let converToList events =
+    events |> Seq.map toEventEnvelope |> Seq.toList
 
   let createStream: StreamCreator<_, _, _, _> =
     fun appendEventsResult ->
@@ -172,7 +180,7 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
     let streamId = id |> (idConverter |> fst)
     this.QueryEvents().Where(fun x -> x.StreamId = streamId).AsNoTracking()
 
-  interface IEventStorage<'streamId, Stream<'streamId>, 'state, EventEnvelope<'streamId,'eventDetails>, 'c> with
+  interface IEventStorage<'streamId, Stream<'streamId>, 'state, EventEnvelope<'streamId, 'eventDetails>, 'c> with
 
     member this.LoadEventRange(id: 'streamId, from, until) =
       id
@@ -186,41 +194,81 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
       |> Seq.toSeqAsync
       |> Task.map (converToList >> Some)
 
-    member this.LoadAllEvents(id) =
+    member this.LoadAllEvents id =
       id
       |> this.QueryStreamEvents
       |> Seq.toSeqAsync
       |> Task.map (converToList >> Some)
 
-    member this.LoadRequiredStream(id: 'streamId) =
-      task {
-        let! stream = this.GetStream id
-        if box stream = null then
-          return Error(EventStoreError.New(EventStoreErrorDetails.NotFound, None))
-        else
-          let! events = this.QueryStreamEvents(id).ToListAsync()
-          let events = events |> Seq.map toEventEnvelope |> Seq.toList
-          return { Id=id; Stream=stream|>toStream;Events=events}|>Ok
-      }
-
     member this.LoadStream(id: 'streamId) =
       task {
-        let! x = (this :> IEventStorage<_, _, _, _, _>).LoadRequiredStream id
-        return x |> Option.ofResult
+        logger.info (Log.setMessage "Loading stream {stream_id}" >> Log.addParameter id)
+        |> ignore
+        let! stream = this.GetStream id
+        if box stream = null then
+          logger.info (Log.setMessage "Stream {stream_id} not found" >> Log.addParameter id)
+          |> ignore
+          return None
+        // return Error(EventStoreError.New(EventStoreErrorDetails.NotFound, None))
+        else
+          let! events = this.QueryStreamEvents(id).ToListAsync()
+
+          let events = events |> Seq.map toEventEnvelope |> Seq.toList
+          logger.info (
+            Log.setMessage "Loaded events for {stream_id}"
+            >> Log.addParameter id
+            >> Log.addContext "Events" events
+          )
+          return
+            {
+              Id = id
+              Stream = stream |> toStream
+              Events = events
+            }
+            |> Some
+
+      // let! x = (this :> IEventStorage<_, _, _, _, _>).LoadRequiredStream id
+      // printfn "loaded stream %A" x
+      // return x |> Option.ofResult
+
       }
 
-    member this.Commit(v) =
+    member this.LoadRequiredStream(id: 'streamId) =
+      task {
+        let! stream = (this :> IEventStorage<_, _, _, _, _>).LoadStream id
+        let stream =
+          stream
+          |> Result.requireSome (EventStoreError.New(EventStoreErrorDetails.NotFound, None))
+        stream
+        |> Result.iterError (fun e ->
+          logger.error (
+            Log.setMessage "Loading required stream {stream} errored {error}"
+            >> Log.addParameter id
+            >> Log.addParameter e
+          )
+        )
+        return stream
+      }
+
+    member this.Commit v =
       taskResult {
+        logger.debug (
+          Log.setMessage "Committing events. Stream is new = {isNew}"
+          >> Log.addParameter v.IsNew
+          >> Log.addContext "Events" v.Events
+        )
         let! stream = (this :> IEventStorage<_, _, _, _, _>).LoadStream v.Id
 
         let! s1 =
           if v.IsNew then
             createStream v |> Ok
-
           else
+            if stream.IsNone then
+              logger.error (Log.setMessage "v.IsNew but no stream found")
             stream
             |> Option.map (fun x -> updateStream x.Stream v |> Ok)
             |> Option.defaultValue (EventStoreError.New(EventStoreErrorDetails.NotFound, None) |> Error)
+        // printfn "Stream to be saved\n%A" s1
         let streamDto = s1 |> toStreamDto
         if v.IsNew then
           this.StreamSet().Add streamDto |> ignore
@@ -228,39 +276,41 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
           let existingEntry =
             this.StreamSet().Local.FirstOrDefault(fun x -> x.Id = streamDto.Id)
           if box existingEntry = null then
+            // printfn "attach..."
             this.StreamSet().Attach streamDto |> ignore
+            let entry = this.StreamSet().Entry streamDto
+            // printfn "entry %A" entry
+            // printfn "is modified %A" (entry.Property(_.Version).IsModified)
+            // assert
+            entry.Property(_.Version).IsModified <- true
+            entry.Property(_.Modified).IsModified <- true
           else
-            (this.StreamSet().Entry existingEntry).CurrentValues.SetValues streamDto
+            // printfn "set current values"
+            let entry = this.StreamSet().Entry existingEntry
+            entry.CurrentValues.SetValues streamDto
+        // entry.State<-EntityState.Modified
 
         let eventDtos = v.Events |> Seq.map toEventDto
+        // printfn "debug view\n%s" (this.Db :> DbContext).ChangeTracker.DebugView.LongView
 
         eventDtos |> Seq.iter (this.EventSet().Add >> ignore)
 
-        let! _ = db.SaveChangesAsync()
+        logger.debug (
+          Log.setMessage "Saving"
+          >> Log.addContext "EfDebugView" db.ChangeTracker.DebugView.LongView
+        )
+
+        let! result = db.SaveChangesAsync()
+
+        logger.debug (Log.setMessage "SaveChanges {count}" >> Log.addParameter result)
 
         return ()
       }
 
     member this.QueryStreams() =
-      // this.StreamSet().ToListAsync()
       this.StreamSet()
       |> Seq.toSeqAsync
-      |> Task.map(
-        Seq.map (fun x -> x.Id |> toStreamId , x |> toStream)
-        >> Seq.toList
-        >> Ok
-      )
-      // task {
-      //   let! streams = this.StreamSet().ToListAsync()
-      //   let result = streams |> Seq.map(fun x ->  (x.Id |> (idConverter|>snd)), x |> toStream) |> Seq.toList
-      //   return result |> Ok
-      // }
-    // member this.QueryStreams() =
-    //   task {
-    //     let! streams = this.StreamSet().ToListAsync()
-    //     let result = streams |> Seq.map(fun x ->  (x.Id |> (idConverter|>snd)), x |> toStream) |> Seq.toList
-    //     return result |> Ok
-    //   }
+      |> Task.map (Seq.map (fun x -> x.Id |> toStreamId, x |> toStream) >> Seq.toList >> Ok)
 
   member this.LoadAllEvents id =
     (this :> IEventStorage<_, _, _, _, _>).LoadAllEvents id
@@ -273,11 +323,9 @@ type ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'discriminator when 'strea
     streamEntityDiscriminator: Metadata.Builders.DiscriminatorBuilder<'discriminator>,
     eventEntityDiscriminator: Metadata.Builders.DiscriminatorBuilder<'discriminator>
   ) =
-  member _.WithStreamType<'streamId, 'streamIdRaw, 'stream, 'eventDetails
-    when 'streamId: equality>
+  member _.WithStreamType<'streamId, 'streamIdRaw, 'stream, 'eventDetails when 'streamId: equality>
     (discriminatorValue: 'discriminator, cfg)
     =
-
     streamEntityDiscriminator.HasValue<Dtos.StreamDto<'streamIdRaw, 'eventDetails>> discriminatorValue
     |> ignore
 
@@ -286,10 +334,7 @@ type ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'discriminator when 'strea
 
     let eventEntity = ty.Entity<Dtos.EventDto<'streamIdRaw, 'eventDetails>>()
 
-    eventEntity
-      .Property(fun x -> x.StreamId)
-      .IsRequired(true)
-      .HasColumnName "StreamId"
+    eventEntity.Property(fun x -> x.StreamId).IsRequired(true).HasColumnName "StreamId"
     // .HasConversion(toEfConverter options.StreamId)
     |> ignore
 
@@ -317,7 +362,8 @@ type ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'discriminator when 'strea
       .HasOne(fun x -> x.Stream)
       .WithMany(fun x -> x.Children :> Collections.Generic.IEnumerable<Dtos.EventDto<'streamIdRaw, 'eventDetails>>)
       .HasForeignKey(fun x -> x.StreamId :> obj)
-      .HasConstraintName "stream_events"
+      .HasConstraintName
+      "stream_events"
     |> ignore
 
     cfg |> Option.iter (fun x -> x (eventEntity, dataProp))
@@ -360,9 +406,7 @@ type ModelBuilderExtensions() =
       entity.ToTable(tablePrefix + "_events") |> ignore
       entity.OwnsOne(fun x -> x.CausationId) |> ignore
 
-      entity
-        .Property(fun x -> x.CorrelationId)
-        .HasConversion(correlationIdConverter ())
+      entity.Property(fun x -> x.CorrelationId).HasConversion(correlationIdConverter ())
       |> ignore
 
       entity.Ignore(fun x -> x.CorrelationId :> obj) |> ignore
@@ -372,14 +416,10 @@ type ModelBuilderExtensions() =
     |> ignore
 
     let streamEntity =
-      ty
-        .Entity<Dtos.StreamBaseDto<'streamIdRaw>>()
-        .HasDiscriminator<'tDiscriminator>("Type")
+      ty.Entity<Dtos.StreamBaseDto<'streamIdRaw>>().HasDiscriminator<'tDiscriminator>("Type")
 
     let eventEntity =
-      ty
-        .Entity<Dtos.EventBaseDto<'eventIdRaw>>()
-        .HasDiscriminator<'tDiscriminator>("Type")
+      ty.Entity<Dtos.EventBaseDto<'eventIdRaw>>().HasDiscriminator<'tDiscriminator>("Type")
     configure (ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'tDiscriminator>(ty, streamEntity, eventEntity))
     ()
 

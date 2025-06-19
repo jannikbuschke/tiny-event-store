@@ -53,7 +53,7 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
     this
       .StreamSet()
       .Include(fun x -> x.Children.OrderBy(fun x -> x.Id))
-      .AsNoTracking()
+      // .AsNoTracking()
       .FirstOrDefaultAsync(fun x -> x.Id = id)
     |> Task.map Option.ofObj
 
@@ -124,6 +124,7 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
         }
       let updateStream v =
         taskResult {
+          printfn "update stream"
           let! stream = this.GetStream v.Id
           let! stream =
             stream
@@ -131,17 +132,25 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
 
           // printfn "Streamid %A" stream.Id
           stream.Modified <- v.TimeStamp
-          let existingEntry = db.Entry stream
-          if box existingEntry = null || existingEntry.State = EntityState.Detached then
-            // printfn "attach stream %A" stream
-            this.StreamSet().Attach stream |> ignore
-            let entry = this.StreamSet().Entry stream
-            entry.Property(_.Version).IsModified <- true
-            entry.Property(_.Modified).IsModified <- true
-          else
-            // printfn "set current values stream %A" stream.Modified
-            // printfn "set current values stream %A" existingEntry.State
-            existingEntry.CurrentValues.SetValues stream
+          stream.Version <- v.Version
+        // stream.IsDeleted <- v.Version
+        // let existingEntry = db.Entry stream
+        // printfn "existring entry %A" existingEntry
+        // if box existingEntry = null then
+        //   printfn "attach stream %A" stream
+        //   this.StreamSet().Attach stream |> ignore
+        //   let entry = this.StreamSet().Entry stream
+        //   entry.Property(_.Version).IsModified <- true
+        //   entry.Property(_.Modified).IsModified <- true
+        // else if existingEntry.State = EntityState.Detached then
+        //   printfn "%A" this.Db.ChangeTracker.DebugView.LongView
+        //   printfn "set state modified"
+        //   existingEntry.State <- EntityState.Modified
+        //   existingEntry.CurrentValues.SetValues stream
+        // else
+        //   printfn "set current values stream %A" stream.Version
+        //   // printfn "set current values stream %A" existingEntry.State
+        //   existingEntry.CurrentValues.SetValues stream
         }
 
       taskResult {

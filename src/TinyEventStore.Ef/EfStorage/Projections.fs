@@ -3,25 +3,22 @@ module TinyEventStore.EfStorage.Projection
 open Microsoft.EntityFrameworkCore
 open TinyEventStore.Interfaces
 
-type DeriveProjection<'a,'b,'c,'t,'db when 'db :> DbContext and 'c:>IEvent> =
+type DeriveProjection<'a, 'b, 'c, 't, 'db when 'db :> DbContext and 'c :> IEvent> =
   {
-    Derive:AppendEventsResult<'a,'b,'c> -> 't
-    ShouldDelete:AppendEventsResult<'a,'b,'c>->bool
-    }
+    Derive: AppendEventsResult<'a, 'b, 'c> -> 't
+    ShouldDelete: AppendEventsResult<'a, 'b, 'c> -> bool
+  }
 
 let defaultEfProjection (db: 'db :> DbContext) (obj: 't) (arg: AppendEventsResult<_, _, _>) shouldDelete =
   let set = db.Set<'t>()
   let isNew = arg.IsNew
   match isNew, shouldDelete with
-  | true, true -> ()//do nothing
-  | true, false ->
-    set.Add obj |> ignore
-  | false, true ->
-    set.Remove obj |> ignore
-  | false,false ->
-    set.Update obj |> ignore
+  | true, true -> () //do nothing
+  | true, false -> set.Add obj |> ignore
+  | false, true -> set.Remove obj |> ignore
+  | false, false -> set.Update obj |> ignore
 
-let handler (db:'db when 'db :> DbContext) (arg: AppendEventsResult<_, _, _>) (proj:DeriveProjection<_,_,_,_,_>)=
+let handler (db: 'db :> DbContext) (arg: AppendEventsResult<_, _, _>) (proj: DeriveProjection<_, _, _, _, _>) =
   task {
     let obj = proj.Derive arg
     let shouldDelete = proj.ShouldDelete arg

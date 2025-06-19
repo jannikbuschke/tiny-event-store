@@ -15,7 +15,9 @@ type EventStore<'state, 'e, 'c, 'ctx>
     onCommitting: OnCommittingEventHandler<_, _, 'ctx> seq,
     subscriptions: Subscription<'state, 'e, 'ctx> list
   ) =
+
   let handler ctx = createHandler system onCommitting ctx
+
   member _.Rehydrate(store: ISimpleEventStorage<_, _, _>, id) =
     rehydrate system.aggregate store system.getEventVersion id
 
@@ -29,8 +31,8 @@ type EventStore<'state, 'e, 'c, 'ctx>
       ?causation: TinyEventStore.Causation
     ) =
     taskResult {
-      let applyEvents, _ = handler ctx
-      let! result = applyEvents store (id, ts) events
+      let handler = handler ctx
+      let! result = handler.applyEvents store (id, ts) events
       for subscription in subscriptions do
         do! subscription ctx result
       return result
@@ -38,8 +40,8 @@ type EventStore<'state, 'e, 'c, 'ctx>
 
   member _.ApplyCommand(store: ISimpleEventStorage<'state, 'e, 'c>, (id, dt), command, ctx: 'ctx) =
     taskResult {
-      let _, applyCommand = handler ctx
-      let! result = applyCommand store (id, dt) command
+      let handler = handler ctx
+      let! result = handler.applyCommand store (id, dt) command
 
       for subscription in subscriptions do
         do! subscription ctx result

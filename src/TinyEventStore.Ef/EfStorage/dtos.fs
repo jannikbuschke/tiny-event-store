@@ -1,9 +1,8 @@
-module TinyEventStore.EfStorage.Dtos
+namespace TinyEventStore.EfStorage.Dtos
 
 open System
 open System.Collections.Generic
 open TinyEventStore.Interfaces
-// open TinyEventStore
 
 [<AbstractClass>]
 type StreamBaseDto<'id when 'id: equality>() =
@@ -18,7 +17,7 @@ type StreamBaseDto<'id when 'id: equality>() =
   member this.HasValidVersion() = this.Version > Version.Zero
 
   member this.IsValid() =
-    this.HasValidVersion() && (this.Id <> Unchecked.defaultof<'id>)
+    this.HasValidVersion() && this.Id <> Unchecked.defaultof<'id>
 
 and StreamDto<'streamIdRaw, 'event when 'streamIdRaw: equality>() =
   inherit StreamBaseDto<'streamIdRaw>()

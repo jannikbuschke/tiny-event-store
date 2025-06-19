@@ -212,5 +212,12 @@ let createHandler
       return commitResult
 
     }
+  let rehydrate store streamId =
+    rehydrate system.aggregate store system.getEventVersion streamId
 
-  applyEvents, applyCommand
+  {|
+    applyEvents = applyEvents
+    applyCommand = applyCommand
+    rehydrate = rehydrate
+  |}
+// applyEvents, applyCommand

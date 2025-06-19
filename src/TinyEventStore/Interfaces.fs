@@ -3,6 +3,16 @@ namespace TinyEventStore.Interfaces
 open FsToolkit.ErrorHandling
 open System
 
+// [<RequireQualifiedAccess>]
+// type CausationId =
+//   | CommandId of CommandId
+//   | EventId of EventId
+
+// type Causation =
+//   | Command of Entity:string * CommandName:string * TinyEventStore.CommandId
+//   | Event of Entity:string * EventName:string * TinyEventStore.EventId
+//   | DomainEvent of Name:string
+
 type V = int64
 type SequenceId = int64
 
@@ -25,6 +35,7 @@ type IStream =
 
 type ICommand =
   abstract member TimeStamp: DateTimeOffset
+  abstract member Id: TinyEventStore.CommandId
 
 type Evolve<'s, 'e> = 's -> 'e -> 's
 // todo, change to result
@@ -98,18 +109,20 @@ type IProjection =
   abstract member Apply: AppendEventsResult<'id, 'state, 'e> -> Task
 
 [<Struct>]
-type StreamContainerDto<'id,'stream,'e>={
-  Id: 'id
-  Stream: 'stream
-  Events: 'e list
-}
+type StreamContainerDto<'id, 'stream, 'e> =
+  {
+    Id: 'id
+    Stream: 'stream
+    Events: 'e list
+  }
 
 type IEventStorage<'streamId, 'stream, 'state, 'event, 'c when 'stream :> IStream> =
   abstract member LoadEventRange: 'streamId * V * V -> Task<'event list option>
   abstract member LoadEventsFrom: 'streamId * V -> Task<'event list option>
   abstract member LoadAllEvents: 'streamId -> Task<'event list option>
-  abstract member LoadStream: 'streamId -> Task<StreamContainerDto<'streamId,'stream,'event>  option>
-  abstract member LoadRequiredStream: 'streamId -> Task<Result<StreamContainerDto<'streamId,'stream,'event>, EventStoreError>>
+  abstract member LoadStream: 'streamId -> Task<StreamContainerDto<'streamId, 'stream, 'event> option>
+  abstract member LoadRequiredStream:
+    'streamId -> Task<Result<StreamContainerDto<'streamId, 'stream, 'event>, EventStoreError>>
   abstract member QueryStreams: unit -> Task<Result<('streamId * 'stream) list, EventStoreError>>
   abstract member Commit: AppendEventsResult<'streamId, 'state, 'event> -> Task<Result<unit, EventStoreError>>
 
@@ -128,14 +141,18 @@ type EventContext<'streamId> =
     EventId: TinyEventStore.EventId
     Version: V
     TimeStamp: DateTimeOffset
-    CausationId: TinyEventStore.CausationId option
+    Causation: TinyEventStore.Causation option
   }
 
-type WrapEventDetails<'streamId,'ed, 'e> = EventContext<'streamId> -> 'ed -> 'e
+type WrapEventDetails<'streamId, 'ed, 'e> = EventContext<'streamId> -> 'ed -> 'e
 
 type OnCommittingEventHandler<'a, 'b, 'c, 'ctx> = 'ctx -> AppendEventsResult<'a, 'b, 'c> -> Task
 
 module Core =
+  open TinyEventStore.Log
+
+  let logger =
+    LogProvider.getLoggerByName "TinyEventStore.CoreModule"
 
   let error details message =
     Error(EventStoreError.New(details, Some message))
@@ -159,8 +176,9 @@ module Core =
     : Task<HydrationResult<_, _, _> option>
     =
     task {
+      logger.info (Log.setMessage "Rehydrating stream {stream_id}" >> Log.addParameter id)
       let! stream = store.LoadStream id
-      return
+      let result =
         stream
         |> Option.map (fun stream ->
           let state = stream.Events |> applyEventsFromZero aggregate
@@ -170,6 +188,12 @@ module Core =
             Events = stream.Events
           }
         )
+
+      logger.info (
+        Log.setMessage "Rehydration result {rehydration_result}"
+        >> Log.addParameter result
+      )
+      return result
     }
 
   let getStateAndVersion (system: System<_, _, _, _>) (hydrationResult: HydrationResult<_, _, _> option) =
@@ -181,12 +205,15 @@ module Core =
     (system: System<'state, 'e, 'ed, 'c>)
     (store: IEventStorage<'id, 'stream, 'state, 'e, 'c>)
     (onCommitting: OnCommittingEventHandler<_, _, _, _> seq)
-    (f: WrapEventDetails<'id,'ed, 'e>)
+    (f: WrapEventDetails<'id, 'ed, 'e>)
     (ts: DateTimeOffset)
     (id: 'id)
     (events: 'ed list)
     (ctx: 'ctx)
+    (causation: TinyEventStore.Causation option)
     =
+    logger.debug (Log.setMessage "Appending events")
+
     match events with
     | [] ->
       error2 (EventStoreErrorDetails.IllegalArgument IllegalArgumentError.EmptyEvents)
@@ -206,25 +233,54 @@ module Core =
           Ok hydrationResult
 
       let evolve (v0: V, state0: 'state, evts: 'e list) (evt: 'ed) =
+        let v1 = v0 + 1L
         let ctx =
           {
             StreamId = id
-            Version = v0 + 1L
+            Version = v1
             TimeStamp = ts
-            EventId =  TinyEventStore.EventId.New()
-            CausationId = None
-            }
+            EventId = TinyEventStore.EventId.New()
+            Causation = causation
+          }
+        if evts.Length <> int v0 then
+          logger.warn (
+            Log.setMessage "Expected {expected} events, but got {actual}"
+            >> Log.addParameter v0
+            >> Log.addParameter evts.Length
+          )
+
         let wrappedEvent = evt |> f ctx
         let state1 = system.aggregate.evolve state0 wrappedEvent
+        logger.info (
+          Log.setMessage "Evolve {id} {v0}->{v1}"
+          >> Log.addParameter id
+          >> Log.addParameter v0
+          >> Log.addParameter v1
+          >> Log.addContext "state0" state0
+          >> Log.addContext "state1" state1
+          >> Log.addContext "Events" evts
+          >> Log.addContext "Wrapped event" wrappedEvent
+        )
+        // logDebug(, [|id;v0;state0;evts;wrappedEvent;state1|])
         ctx.Version, state1, evts @ [ wrappedEvent ]
 
       let handleAppendEvents (hydrationResult: HydrationResult<_, _, _> option) =
-        let state0, version = getStateAndVersion system hydrationResult
-        let version, state, events = allEvents |> List.fold evolve (version, state0, [])
+        let state0, version0 = getStateAndVersion system hydrationResult
+        let version1, state1, events = allEvents |> List.fold evolve (version0, state0, [])
+        logger.debug (
+          Log.setMessage "Events appended {stream_id}"
+          >> Log.addParameter id
+          >> Log.addContext "version0" version0
+          >> Log.addContext "version1" version1
+          >> Log.addContext "state0" state0
+          >> Log.addContext "state1" state1
+          >> Log.addContext "events" events
+          >> Log.addContext "all_events" allEvents
+        )
         {
           Id = id
-          Version = version
-          State = state
+          Version = version1
+          State = state1
           Events = events
           IsNew = hydrationResult.IsNone
           TimeStamp = ts
@@ -232,16 +288,23 @@ module Core =
 
       let commitNewEvents (appendEventsResult: AppendEventsResult<_, _, _>) =
         taskResult {
+          // printfn "append events result\n%A" appendEventsResult
           for handler in onCommitting do
             do! handler ctx appendEventsResult
+          let causationName = causation |> Option.map _.MessageName
+          logger.debug (Log.setMessage "Committing events")
           do! store.Commit appendEventsResult
+          logger.info (
+            Log.setMessage "Committed: {causation} ==>> {eventResult}"
+            >> Log.addParameter causationName
+            >> Log.addParameter appendEventsResult
+          )
           return appendEventsResult
         }
 
       id
       |> rehydrate system.aggregate store
       |> Task.bind (
-
         errorIfNoStreamAndNotInitializingEvent
         >> Result.map handleAppendEvents
         >> Result.map commitNewEvents
@@ -252,12 +315,18 @@ module Core =
     (system: System<'state, 'e, 'ed, 'c>)
     (storage: IEventStorage<'id, 'stream, 'state, 'e, 'c>)
     (onCommitting: OnCommittingEventHandler<_, _, _, _> seq)
-    (f: WrapEventDetails<'id,'ed, 'e>)
+    (f: WrapEventDetails<'id, 'ed, 'e>)
     (id: 'id)
     (c: 'c :> ICommand)
     (ctx: 'ctx)
     =
     taskResult {
+      let causation: TinyEventStore.Causation =
+        {
+          EntityType = None // typeof<'state>.FullName |> Some
+          MessageName = c.GetType().FullName
+          Id = c.Id |> TinyEventStore.CausationId.CommandId |> Some
+        }
       let! rehydrationResult = rehydrate system.aggregate storage id
       let state0, _ = getStateAndVersion system rehydrationResult
       do!
@@ -267,19 +336,18 @@ module Core =
           EventStoreError.New(
             EventStoreErrorDetails.InitializationError InitializationError.CommandIsNotInitializer,
             sprintf
-             "Expected an initialising command (but got (%s) which is not defined as an initializer), as the env stream %s does not yet have any events"
-             (c.GetType().Name)
-             (id.ToString())
+              "Expected an initialising command (but got (%s) which is not defined as an initializer), as the env stream %s does not yet have any events"
+              (c.GetType().Name)
+              (id.ToString())
             |> Some
           )
         )
 
       let events = system.decide state0 c
-      return! appendEvents system storage onCommitting f c.TimeStamp id events ctx
+      return! appendEvents system storage onCommitting f c.TimeStamp id events ctx (Some causation)
     }
 
 type Subscription<'id, 'state, 'e, 'ctx> = 'ctx -> AppendEventsResult<'id, 'state, 'e> -> Task<unit>
-
 
 type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
   when 'state: equality
@@ -290,22 +358,36 @@ type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
   and 'c :> ICommand>
   (
     system: System<'state, 'e, 'ed, 'c>,
-    wrapper: WrapEventDetails<'id,'ed, 'e>,
+    wrapper: WrapEventDetails<'id, 'ed, 'e>,
     onCommitting: OnCommittingEventHandler<_, _, _, 'ctx> seq,
     subscriptions: Subscription<'id, 'state, 'e, 'ctx> list
   ) =
   member _.Rehydrate(store: IEventStorage<_, _, _, _, _>, id) =
     Core.rehydrate system.aggregate store id
 
-  member _.ApplyEvents(store: IEventStorage<_, _, _, _, _>, id, eventDetails: 'ed list, ts, ctx: 'ctx) =
+  member _.ApplyEvents
+    (
+      store: IEventStorage<_, _, _, _, _>,
+      id,
+      eventDetails: 'ed list,
+      ts,
+      ctx: 'ctx,
+      ?causation: TinyEventStore.Causation
+    ) =
     taskResult {
-      let! result = Core.appendEvents system store onCommitting wrapper ts id eventDetails ctx
+      let! result = Core.appendEvents system store onCommitting wrapper ts id eventDetails ctx causation
+
       let! result = result
       for subscription in subscriptions do
         do! subscription ctx result
     }
-  member this.ApplyEvents(store: IEventStorage<_, _, _, _, _>, id, eventDetails: 'ed list, ctx: 'ctx) =
-    this.ApplyEvents(store, id, eventDetails, DateTimeOffset.UtcNow, ctx)
+
+  member this.ApplyEvents
+    (store: IEventStorage<_, _, _, _, _>, id, eventDetails: 'ed list, ctx: 'ctx, ?causation: TinyEventStore.Causation)
+    =
+    match causation with
+    | Some causation -> this.ApplyEvents(store, id, eventDetails, DateTimeOffset.UtcNow, ctx, causation)
+    | None -> this.ApplyEvents(store, id, eventDetails, DateTimeOffset.UtcNow, ctx)
 
   member _.ApplyCommand(store: IEventStorage<_, _, _, _, _>, id, command, ctx: 'ctx) =
     taskResult {
@@ -352,7 +434,11 @@ module InmemEventStorage =
           |> Task.FromResult
 
         member _.QueryStreams() =
-          dict |> Seq.map(fun id  -> id.Key, id.Value |> fst) |> Seq.toList |> Ok |> Task.FromResult
+          dict
+          |> Seq.map (fun id -> id.Key, id.Value |> fst)
+          |> Seq.toList
+          |> Ok
+          |> Task.FromResult
 
         member _.LoadEventsFrom(id, from) =
           id |> getEvents |> Option.map (List.skip (int (from - 1L))) |> Task.FromResult
@@ -377,12 +463,27 @@ module InmemEventStorage =
                   Message = Some "Stream not found"
                   Details = EventStoreErrorDetails.NotFound
                 }
-            return { Id = id; Stream = stream; Events = events }
+            return
+              {
+                Id = id
+                Stream = stream
+                Events = events
+              }
           }
 
         member _.LoadStream id =
           let events, stream = id |> getEvents, id |> getStream
-          Option.map2 (fun x y -> {Id=id;Stream=y;Events=x }) events stream |> Task.FromResult
+          Option.map2
+            (fun x y ->
+              {
+                Id = id
+                Stream = y
+                Events = x
+              }
+            )
+            events
+            stream
+          |> Task.FromResult
 
         member _.Commit v =
           let existingStream =
