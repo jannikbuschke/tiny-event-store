@@ -81,7 +81,7 @@ let store subscription =
         // Data = details
         EventId = ctx.EventId
         StreamId = ctx.StreamId
-        CausationId = ctx.CausationId
+        Causation = ctx.Causation
       }
     ),
     [ immediateProjectionsSubscription ],

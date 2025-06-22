@@ -60,20 +60,20 @@ type TheaterCommandDetails =
 
 type TheaterCommand =
   {
+    Id: TinyEventStore.CommandId
     TimeStamp: DateTimeOffset
     Data: TheaterCommandDetails
   }
 
   static member New(v: TheaterCommandDetails, timestamp: DateTimeOffset) =
     {
+      Id = TinyEventStore.CommandId.New()
       TimeStamp = timestamp
       Data = v
     }
   static member New(v: TheaterCommandDetails) =
-    {
-      TimeStamp = DateTimeOffset.Now
-      Data = v
-    }
+    TheaterCommand.New(v,DateTimeOffset.Now)
 
   interface ICommand with
     member this.TimeStamp = this.TimeStamp
+    member this.Id = this.Id

@@ -24,14 +24,13 @@ let createServices name =
   let provider = services.BuildServiceProvider()
   use scope = provider.CreateScope()
   use db = scope.ServiceProvider.GetService<EventDbContext>()
-  // let db = new EventDbContext(options.Options)
   db.Database.EnsureDeleted() |> ignore
   db.Database.EnsureCreated() |> ignore
   provider
 
 let getStorage (services: IServiceProvider) =
   let db = services.GetService<EventDbContext>()
-  EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(db, efStorageOptions)
+  db
 
 let printSubscription: Subscription<_, _, _> =
   fun _ x ->
@@ -84,8 +83,14 @@ module Expect =
 let createContext id =
   let services = createServices (id.ToString())
   let scope = services.CreateAsyncScope()
-  let storage = getStorage scope.ServiceProvider
-  scope, storage
+  let db = getStorage scope.ServiceProvider
+  scope, db, db.TheaterEventStorage()
+
+let getDb id =
+  let services = createServices (id.ToString())
+  let scope = services.CreateAsyncScope()
+  let db = getStorage scope.ServiceProvider
+  db
 
 let createEvents details (ctx: CreateEventsContext) =
   details
@@ -103,10 +108,12 @@ let createEvents details (ctx: CreateEventsContext) =
 let tests =
   [
 
-    testTask "Event after delete should not have an effect" {
+    testTask "db" {
       let store = store []
+      let id = "4b2ed399-2391-4a8c-962e-ac0b19e05643" |> Guid.Parse
+
       let id = "cca1604d-81c6-4612-8008-ab28e4d92d0b" |> Guid.Parse
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
       do!
         store.ApplyEvents(
           storage,
@@ -118,7 +125,36 @@ let tests =
       let db = storage.Db
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 0 @>
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
+      do!
+        store.ApplyEvents(
+          storage,
+          id,
+          createEvents [ TheaterEventDetails.Updated "Hello World 2" ],
+          ts,
+          scope.ServiceProvider
+        )
+      let! listItems = db.ListItems().CountAsync()
+      expect <@ listItems = 0 @>
+    }
+
+    testTask "Event after delete should not have an effect" {
+      let store = store []
+      let id = "cca2704d-81c6-4612-8008-ab28e4d92d0b" |> Guid.Parse
+      let scope, db, storage = createContext id
+      do!
+        store.ApplyEvents(
+          storage,
+          id,
+          createEvents [ TheaterEventDetails.Created "Hello World"; TheaterEventDetails.Deleted ],
+          ts,
+          scope.ServiceProvider
+        )
+      let db = storage.Db
+      let! listItems = db.ListItems().CountAsync()
+      expect <@ listItems = 0 @>
+      let scope, db, storage = createContext id
+      let storage = db.TheaterEventStorage()
       do!
         store.ApplyEvents(
           storage,
@@ -134,7 +170,8 @@ let tests =
     testTask "Deleted should delete projection" {
       let store = store []
       let id = "a521feb3-ff9a-4c20-b72d-74e874f262ff" |> Guid.Parse
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
+      let storage = db.TheaterEventStorage()
       do!
         store.ApplyEvents(
           storage,
@@ -146,7 +183,7 @@ let tests =
       let db = storage.Db
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 1 @>
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
       do! store.ApplyEvents(storage, id, createEvents [ TheaterEventDetails.Deleted ], ts, scope.ServiceProvider)
       let! listItems = db.ListItems().CountAsync()
       expect <@ listItems = 0 @>
@@ -155,7 +192,7 @@ let tests =
     testTask "Initial events with deletion should not create list projection" {
       let store = store []
       let id = "5c94b2b8-4569-430f-b9e2-576aa2c4cbba" |> Guid.Parse
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
 
       do!
         store.ApplyEvents(
@@ -168,19 +205,14 @@ let tests =
 
       let db = storage.Db
       let! listItems = db.ListItems().ToListAsync() |> Task.map Seq.toList
-      expect
-        <@
-          listItems = [
-
-          ]
-        @>
+      expect <@ listItems = [] @>
 
     }
 
     testTask "Initial events should create list projection" {
       let store = store []
       let id = "bb994f4b-5026-4234-8b48-9ee53d94d239" |> Guid.Parse
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
 
       do!
         store.ApplyEvents(
@@ -212,7 +244,7 @@ let tests =
     testTask "Initial event should create list projection" {
       let store = store []
       let id = "f1e0cdd0-b9c1-459a-b750-dfe6a42263cb" |> Guid.Parse
-      let scope, storage = createContext id
+      let scope, db, storage = createContext id
 
       do!
         store.ApplyEvents(

@@ -125,6 +125,16 @@ class Build : NukeBuild
     [Parameter]
     string NugetApiUrl = "https://api.nuget.org/v3/index.json";
 
+    private string GetNugetKey()
+    {
+        var path = Solution.Directory / ".env.local";
+        dotenv.net.DotEnv.Load(
+                new dotenv.net.DotEnvOptions(envFilePaths: [path])
+            );
+        var apiKey = System.Environment.GetEnvironmentVariable("nuget-api-key");
+        return apiKey;
+    }
+
     Target Publish =>
         _ =>
             // _.DependsOn(Pack, Test)
@@ -132,11 +142,14 @@ class Build : NukeBuild
                 .Requires(() => NugetApiUrl)
                 .Executes(() =>
                 {
-                    dotenv.net.DotEnv.Load(
-                        new dotenv.net.DotEnvOptions(envFilePaths: [".env.local"])
-                    );
-                    ;
-                    var apiKey = System.Environment.GetEnvironmentVariable("nuget-api-key");
+                    // dotenv.net.DotEnv.Load(
+                    //     new dotenv.net.DotEnvOptions(envFilePaths: [".env.local"])
+                    // );
+                    // ;
+                    // var apiKey = System.Environment.GetEnvironmentVariable("nuget-api-key");
+                    var apiKey = GetNugetKey();
+                    Log.Logger.Information("key");
+                    Log.Logger.Information(apiKey);
                     DotNetTasks.DotNetNuGetPush(_ =>
                         _.SetTargetPath(OutputDirectory / "*.nupkg")
                             .SetSource(NugetApiUrl)

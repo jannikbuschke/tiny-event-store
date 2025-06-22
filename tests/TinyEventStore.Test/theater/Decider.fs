@@ -25,7 +25,7 @@ let decide: TinyEventStore.Interfaces.Decide<_, _, _> =
 let system: TinyEventStore.Interfaces.System<_, TheaterEventEnvelope,TheaterEventDetails, _> =
   {
     aggregate = Aggregate.aggregate
-    projections = []
+    // projections = []
     decide = decide
     isCommandInitializer =
       fun c ->
