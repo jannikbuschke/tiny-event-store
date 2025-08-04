@@ -4,11 +4,14 @@ open System
 open System.Threading.Tasks
 
 type V = int64
+
 module V =
   let zero: V = 0
   let increment (v: V) = v + 1L
   let incrementBy (v: V, i: int) = v + int64 i
+
 type Evolve<'s, 'e> = 's -> 'e -> 's
+
 type CreateEventsContext =
   {
     StreamId: Guid
@@ -48,13 +51,21 @@ type Decide<'s, 'c, 'e> = CreateEventsContext -> 's -> 'c -> Result<NonEmptyList
 type IsDeleted<'s, 'e> = 's -> 'e -> bool
 type IsInitialiser<'m> = 'm -> bool
 
-type Projection<'s, 'e> = Evolve<'s, 'e>
+// type Projection<'s, 'e> = Evolve<'s, 'e>
 
 type Aggregate<'s, 'e> =
   {
     zero: 's
     evolve: Evolve<'s, 'e>
     isDeleting: IsDeleted<'s, 'e>
+  }
+
+type Projection<'s, 'e> =
+  {
+    zero: 's
+    evolve: Evolve<'s, 'e>
+    isDeleting: IsDeleted<'s, 'e>
+    isInitializer: IsInitialiser<'e>
   }
 
 type EventStoreDefinition<'state, 'e, 'c> =
