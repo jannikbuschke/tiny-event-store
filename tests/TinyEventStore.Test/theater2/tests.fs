@@ -31,7 +31,7 @@ let createServices name =
 
 let getStorage (services: IServiceProvider) =
   let db = services.GetService<EventDbContext>()
-  EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(db, Store.efStorageOptions)
+  EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(db, Store.efStorageOptions, _.StreamId)
 
 let printSubscription: Subscription<_, _, _> =
   fun _ x ->
@@ -148,7 +148,7 @@ let tests =
       let events = [ TheaterEventDetails.Created "hello world 1" ] |> createEvents
       do! store.ApplyEvents(storage, id, events, t0, ctx)
       let storage, ctx = createContext0 services
-      let! stream0 = (storage :> ISimpleEventStorage<_, _, _>).LoadStream id
+      let! stream0 = (storage :> ISimpleEventStorage<_, _>).LoadStream id
       let stream0: IStreamDbo = stream0 |> Expect.wantOk "Expected ok"
 
       let modifiedTimestamp = stream0.Modified
@@ -160,7 +160,7 @@ let tests =
       do! store.ApplyEvents(storage, id, [ TheaterEventDetails.Updated "hello world 2" ] |> createEvents, t1, ctx)
       let storage, ctx = createContext0 services
 
-      let! stream = (storage :> ISimpleEventStorage<_, _, _>).LoadStream id
+      let! stream = (storage :> ISimpleEventStorage<_, _>).LoadStream id
 
       let stream: IStreamDbo = stream |> Expect.wantOk "Expected ok"
 
@@ -178,9 +178,8 @@ let tests =
       do! store.ApplyCommand(storage, (id, ts.AddSeconds 0), TheaterCommand.New(Create "hello world 1", ts), ctx)
       do! store.ApplyCommand(storage, (id, ts.AddSeconds 1), TheaterCommand.New(Update "hello world 2"), ctx)
       do! store.ApplyCommand(storage, (id, ts.AddSeconds 2), TheaterCommand.New(Update "hello world 3"), ctx)
-      let! stream = (storage :> ISimpleEventStorage<_, _, _>).LoadStream id
+      let! stream = (storage :> ISimpleEventStorage<_, _>).LoadStream id
       let stream: IStreamDbo = stream |> Expect.wantOk "Expected Ok"
-
 
       // expect <@ stream.Created = ts @>
       // expect <@ stream.Modified = ts.AddSeconds 2 @>

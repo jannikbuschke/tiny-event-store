@@ -36,7 +36,8 @@
         <Compile Include="theater2\Aggregate.fs" />
         <Compile Include="theater2\Decider.fs" />
         <Compile Include="theater2\store.fs" />
-        <Compile Include="theater2\tests.projections.fs" />
+        <Compile Include="theater2\tests.inline-projections.fs" />
+        <Compile Include="theater2\tests.background-ef-projections.fs" />
         <Compile Include="theater2\tests.fs" />
 
         <Compile Include="theater\Types.fs" />

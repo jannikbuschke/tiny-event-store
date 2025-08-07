@@ -68,6 +68,7 @@ type Projection<'s, 'e> =
     isInitializer: IsInitialiser<'e>
   }
 
+
 type EventStoreDefinition<'state, 'e, 'c> =
   {
     aggregate: Aggregate<'state, 'e>
@@ -146,10 +147,12 @@ type IStreamDbo =
   abstract member Created: DateTimeOffset
   abstract member Modified: DateTimeOffset
 
-type ISimpleEventStorage<'state, 'event, 'command> =
+type ISimpleEventStorage<'state, 'event> =
   abstract member LoadEventRange: Guid * DateTimeOffset * DateTimeOffset -> Task<NonEmptyList<'event> option>
+  abstract member LoadEventRangeAcrossStreams: V * V -> Task<'event list>
   abstract member LoadAllEvents: Guid -> Task<NonEmptyList<'event> option>
   abstract member Commit: AppendEventsResult<'state, 'event> -> Task<Result<unit, EventStoreError>>
   abstract member LoadStream: Guid -> Task<Result<IStreamDbo, EventStoreError>>
+  abstract member GetStreamKey: 'event -> Guid
 
 type OnCommittingEventHandler<'state, 'event, 'ctx> = 'ctx -> AppendEventsResult<'state, 'event> -> Task

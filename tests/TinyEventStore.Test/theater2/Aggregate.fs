@@ -1,6 +1,7 @@
 module Theater2.Aggregate
 
 open System
+open TinyEventStore.InterfacesSimple
 
 let evolve: TinyEventStore.Interfaces.Evolve<_, _> =
   fun state (e: TheaterEvent) ->
@@ -36,4 +37,38 @@ let aggregate: TinyEventStore.InterfacesSimple.Aggregate<_, _> =
       }
     evolve = evolve
     isDeleting = isDeleted
+  }
+
+[<CLIMutable>]
+type BackgroundListItem = {
+    Id: Guid
+    Name: string
+  }
+
+let evolveBackground: TinyEventStore.Interfaces.Evolve<BackgroundListItem, _> =
+  fun state (e: TheaterEvent) ->
+    match e.Details with
+    | TheaterEventDetails.Created name ->
+      {
+        Id = e.StreamId
+        Name = name
+      }
+    | TheaterEventDetails.Updated name ->
+      { state with
+          Name = name
+      }
+    | TheaterEventDetails.Deleted ->
+      state
+
+// let backgroundAggregate: TinyEventStore.InterfacesSimple.Aggregate<BackgroundListItem, _> = {
+//     zero = {Id=Guid.Empty;Name=""}
+//     evolve = evolveBackground
+//     isDeleting = fun c s -> true
+//   }
+
+let backgroundProjectionDefinition: Projection<BackgroundListItem, TheaterEvent> = {
+    zero = {Id=Guid.Empty;Name=""}
+    evolve = evolveBackground
+    isDeleting = fun c s -> true
+    isInitializer = fun e -> e.Details.IsCreated
   }

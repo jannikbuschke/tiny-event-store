@@ -36,6 +36,7 @@
         <Compile Include="HandleCommandAndAppendEvents.fs"/>
         <!-- <Compile Include="PureTinyEventStore.fs" /> -->
         <Compile Include="Projections.fs" />
+        <Compile Include="Subscriptions.fs" />
     </ItemGroup>
 
     <ItemGroup>

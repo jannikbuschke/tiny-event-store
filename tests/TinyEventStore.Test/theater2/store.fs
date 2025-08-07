@@ -17,6 +17,7 @@ open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.DependencyInjection
 open System.IO
 open TinyEventStore.Simple
+open TinyEventStore.EfSimpleStorage.Projection
 
 type Discriminator =
   | Theater = 1
@@ -44,6 +45,7 @@ let efStorageOptions: EventStorageOptions<TheaterEvent> =
         )
   }
 
+
 [<CLIMutable>]
 type StateListItem =
   {
@@ -63,11 +65,13 @@ let deriveListItem (eventResult: AppendEventsResult<TheaterState, _>) =
     Id = eventResult.Id
     Name = eventResult.State.Name
   }
+
 let listItemProjection: Projection.DeriveProjection<_, TheaterEvent, _, _> =
   {
     Derive = deriveListItem
     ShouldDelete = fun x -> x.Events.List |> List.exists _.Details.IsDeleted
   }
+
 let immediateProjectionsSubscription: OnCommittingEventHandler<_, _, _> =
   fun (ctx: IServiceProvider) x ->
     task {
@@ -85,11 +89,16 @@ type EventDbContext(options, serviceProvider: IServiceProvider) =
   member _.EventStore() = handler serviceProvider
 
   member this.TheaterEventStorage() =
-    EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(this, efStorageOptions)
+    EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(this, efStorageOptions, _.StreamId)
 
   member this.ListItems() = this.Set<StateListItem>()
+  member this.BackgroundListItems() = this.Set<Aggregate.BackgroundListItem>()
 
   override _.OnModelCreating(modelBuilder: ModelBuilder) : unit =
+    modelBuilder.Entity<Aggregate.BackgroundListItem>(fun entity ->
+      entity.ToTable "list-background" |> ignore
+    ) |> ignore
+
     modelBuilder.Entity<StateListItem>(fun entity ->
       entity.ToTable "list"
       |> ignore
@@ -104,3 +113,13 @@ type EventDbContext(options, serviceProvider: IServiceProvider) =
         fun o -> o.WithStreamType<TheaterEvent>(Discriminator.Theater, None)
       )
     ()
+
+
+let backgroundProjection: EfProjection<Aggregate.BackgroundListItem,TheaterEvent,EventDbContext> ={
+  ProjectionDefinition = Aggregate.backgroundProjectionDefinition
+  OnDeleteProjection = fun db -> task{
+    let! _ = db.BackgroundListItems().ExecuteDeleteAsync()
+    return ()
+
+  }
+}

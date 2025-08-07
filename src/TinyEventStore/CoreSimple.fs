@@ -24,7 +24,7 @@ let applyEventsFromZero (aggregate: Aggregate<_, _>) events =
 
 let rehydrate
   (aggregate: Aggregate<'state, 'e>)
-  (store: ISimpleEventStorage<'state, 'e, 'c>)
+  (store: ISimpleEventStorage<'state, 'e>)
   (getVersion: 'e -> V)
   (id: Guid)
   : Task<HydrationResult<_, _>>
@@ -140,7 +140,7 @@ let createHandler
 
     }
 
-  let commitNewEvents (store: ISimpleEventStorage<_, _, _>) (appendEventsResult: AppendEventsResult<_, _>) =
+  let commitNewEvents (store: ISimpleEventStorage<_, _>) (appendEventsResult: AppendEventsResult<_, _>) =
     taskResult {
       for handler in onCommitting do
         do! handler ctx appendEventsResult
@@ -156,7 +156,7 @@ let createHandler
     }
 
   let applyEvents
-    (store: ISimpleEventStorage<_, _, _>)
+    (store: ISimpleEventStorage<_, _>)
     (streamId: Guid, ts: DateTimeOffset)
     (events: CreateEventsContext -> NonEmptyList<'e>)
     =
@@ -171,7 +171,7 @@ let createHandler
     }
 
   let applyCommand
-    (store: ISimpleEventStorage<_, _, _>)
+    (store: ISimpleEventStorage<_, _>)
     // (onCommitting: OnCommittingEventHandler<_, _, _, _> seq)
     (streamId: Guid, ts: DateTimeOffset) // DateTimeOffset or Version?
     (c: 'c)

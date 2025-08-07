@@ -36,7 +36,7 @@ module Result =
     | Ok _ -> ()
     | Error e -> f e
 
-type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options: EventStorageOptions<'e>) =
+type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options: EventStorageOptions<'e>, getStreamKey: 'e -> Guid) =
 
   let logger = LogProvider.getLoggerByName "TinyEventStore.EfSimpleStorage"
 
@@ -97,7 +97,14 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
         |> Some
     )
 
-  interface ISimpleEventStorage<'state, 'e, 'c> with
+  interface ISimpleEventStorage<'state, 'e> with
+
+    member this.GetStreamKey e = getStreamKey e
+
+    member this.LoadEventRangeAcrossStreams (from: V, untilExcluding: V)=task{
+      let! events = this.EventSet().OrderBy(_.Version).Where(fun x -> from <= x.Version && x.Version < untilExcluding).ToListAsync()
+      return events |> Seq.map options.ToEvent |> Seq.toList
+    }
 
     member this.LoadStream id =
       taskResult {
