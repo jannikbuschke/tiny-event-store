@@ -51,11 +51,11 @@ let evolveBackground: TinyEventStore.Interfaces.Evolve<BackgroundListItem, _> =
     | TheaterEventDetails.Created name ->
       {
         Id = e.StreamId
-        Name = name
+        Name = name + " bg"
       }
     | TheaterEventDetails.Updated name ->
       { state with
-          Name = name
+          Name = name + " bg"
       }
     | TheaterEventDetails.Deleted ->
       state
@@ -69,6 +69,6 @@ let evolveBackground: TinyEventStore.Interfaces.Evolve<BackgroundListItem, _> =
 let backgroundProjectionDefinition: Projection<BackgroundListItem, TheaterEvent> = {
     zero = {Id=Guid.Empty;Name=""}
     evolve = evolveBackground
-    isDeleting = fun c s -> true
+    isDeleting = fun c s -> false
     isInitializer = fun e -> e.Details.IsCreated
   }

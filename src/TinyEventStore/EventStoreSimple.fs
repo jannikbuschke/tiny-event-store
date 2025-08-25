@@ -18,12 +18,12 @@ type EventStore<'state, 'e, 'c, 'ctx>
 
   let handler ctx = createHandler system onCommitting ctx
 
-  member _.Rehydrate(store: ISimpleEventStorage<_, _>, id) =
+  member _.Rehydrate(store: ISimpleEventStorage<_>, id) =
     rehydrate system.aggregate store system.getEventVersion id
 
   member _.ApplyEvents
     (
-      store: ISimpleEventStorage<'state, 'e>,
+      store: ISimpleEventStorage<'e>,
       id,
       events: CreateEventsContext -> NonEmptyList<'e>,
       ts,
@@ -38,7 +38,16 @@ type EventStore<'state, 'e, 'c, 'ctx>
       return result
     }
 
-  member _.ApplyCommand(store: ISimpleEventStorage<'state, 'e>, (id, dt), command, ctx: 'ctx) =
+  // member this.ApplyEvents
+  //   (
+  //     store: ISimpleEventStorage<'e>,
+  //     id,
+  //     events: CreateEventsContext -> NonEmptyList<'e>,
+  //     ctx: 'ctx,
+  //   ) =
+  //   this.Apply(store,id,events,DateTimeOffset.UtcNow,ctx)
+
+  member _.ApplyCommand(store: ISimpleEventStorage<'e>, (id, dt), command, ctx: 'ctx) =
     taskResult {
       let handler = handler ctx
       let! result = handler.applyCommand store (id, dt) command

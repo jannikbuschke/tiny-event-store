@@ -97,7 +97,7 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
         |> Some
     )
 
-  interface ISimpleEventStorage<'state, 'e> with
+  interface ISimpleEventStorage<'e> with
 
     member this.GetStreamKey e = getStreamKey e
 
@@ -136,28 +136,8 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
           let! stream =
             stream
             |> Result.requireSome (EventStoreError.New(EventStoreErrorDetails.NotFound, None))
-
-          // printfn "Streamid %A" stream.Id
           stream.Modified <- v.TimeStamp
           stream.Version <- v.Version
-        // stream.IsDeleted <- v.Version
-        // let existingEntry = db.Entry stream
-        // printfn "existring entry %A" existingEntry
-        // if box existingEntry = null then
-        //   printfn "attach stream %A" stream
-        //   this.StreamSet().Attach stream |> ignore
-        //   let entry = this.StreamSet().Entry stream
-        //   entry.Property(_.Version).IsModified <- true
-        //   entry.Property(_.Modified).IsModified <- true
-        // else if existingEntry.State = EntityState.Detached then
-        //   printfn "%A" this.Db.ChangeTracker.DebugView.LongView
-        //   printfn "set state modified"
-        //   existingEntry.State <- EntityState.Modified
-        //   existingEntry.CurrentValues.SetValues stream
-        // else
-        //   printfn "set current values stream %A" stream.Version
-        //   // printfn "set current values stream %A" existingEntry.State
-        //   existingEntry.CurrentValues.SetValues stream
         }
 
       taskResult {
@@ -173,7 +153,6 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
           Log.setMessage "Saving"
           >> Log.addContext "EfDebugView" db.ChangeTracker.DebugView.LongView
         )
-        // printfn "%s" db.ChangeTracker.DebugView.LongView
         let! _ = db.SaveChangesAsync()
         let! result = db.SaveChangesAsync()
         logger.debug (Log.setMessage "SaveChanges {count}" >> Log.addParameter result)
@@ -182,7 +161,6 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
       }
 
 open Helpers
-
 
 type ConfigureStreamHelper<'discriminator>
   (

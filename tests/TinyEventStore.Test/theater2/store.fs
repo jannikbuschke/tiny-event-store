@@ -18,6 +18,7 @@ open Microsoft.Extensions.DependencyInjection
 open System.IO
 open TinyEventStore.Simple
 open TinyEventStore.EfSimpleStorage.Projection
+open TinyEventStore.Ef.Core
 
 type Discriminator =
   | Theater = 1
@@ -115,11 +116,21 @@ type EventDbContext(options, serviceProvider: IServiceProvider) =
     ()
 
 
-let backgroundProjection: EfProjection<Aggregate.BackgroundListItem,TheaterEvent,EventDbContext> ={
+let backgroundProjection: EfProjection<Aggregate.BackgroundListItem,TheaterEvent,EventDbContext> = {
   ProjectionDefinition = Aggregate.backgroundProjectionDefinition
   OnDeleteProjection = fun db -> task{
     let! _ = db.BackgroundListItems().ExecuteDeleteAsync()
     return ()
-
+  }
+  Apply = fun db s e -> task{
+    let def = backgroundProjection.ProjectionDefinition
+    // let def = projection.ProjectionDefinition
+    let set = db.BackgroundListItems()
+    let s1 = def.evolve s e
+    let op1 = def.Op(s,e)
+    printfn "op %A" op1
+    let op = def.Op(s,e) |> mapToEfSetOperation set
+    op s1
+    return ()
   }
 }

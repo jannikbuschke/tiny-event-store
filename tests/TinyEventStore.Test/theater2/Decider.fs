@@ -26,14 +26,11 @@ let decide: TinyEventStore.InterfacesSimple.Decide<_, _, _> =
         }
     |> List.singleton
     |> NonEmptyList.From
-// |> Ok
 
 let system: TinyEventStore.InterfacesSimple.EventStoreDefinition<TheaterState, TheaterEvent, TheaterCommand> =
   {
     aggregate = Aggregate.aggregate
-    // projections = []
     decide = decide
-    // getEventVersion = fun x -> x.Version
     getEventVersion = _.Version
     isCommandInitializer =
       fun c ->

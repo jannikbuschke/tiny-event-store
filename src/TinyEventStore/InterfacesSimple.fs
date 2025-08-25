@@ -2,6 +2,7 @@ namespace TinyEventStore.InterfacesSimple
 
 open System
 open System.Threading.Tasks
+open TinyEventStore.Core
 
 type V = int64
 
@@ -51,8 +52,6 @@ type Decide<'s, 'c, 'e> = CreateEventsContext -> 's -> 'c -> Result<NonEmptyList
 type IsDeleted<'s, 'e> = 's -> 'e -> bool
 type IsInitialiser<'m> = 'm -> bool
 
-// type Projection<'s, 'e> = Evolve<'s, 'e>
-
 type Aggregate<'s, 'e> =
   {
     zero: 's
@@ -67,7 +66,19 @@ type Projection<'s, 'e> =
     isDeleting: IsDeleted<'s, 'e>
     isInitializer: IsInitialiser<'e>
   }
-
+  member this.Op(s:'s,e:'e)=
+    let isNew = this.isInitializer e
+    let shouldDelete = this.isDeleting s e
+    if isNew && shouldDelete then
+      DbSideEffect.DoNothing
+    else if isNew && not shouldDelete then
+      DbSideEffect.Create
+    else if not isNew && shouldDelete then
+      DbSideEffect.Create
+    else if not isNew && not shouldDelete then
+      DbSideEffect.Update
+    else
+      DbSideEffect.DoNothing
 
 type EventStoreDefinition<'state, 'e, 'c> =
   {
@@ -147,7 +158,15 @@ type IStreamDbo =
   abstract member Created: DateTimeOffset
   abstract member Modified: DateTimeOffset
 
-type ISimpleEventStorage<'state, 'event> =
+// type ISimpleEventStorage<'event> =
+//   abstract member LoadEventRange: Guid * DateTimeOffset * DateTimeOffset -> Task<NonEmptyList<'event> option>
+//   abstract member LoadEventRangeAcrossStreams: V * V -> Task<'event list>
+//   abstract member LoadAllEvents: Guid -> Task<NonEmptyList<'event> option>
+//   abstract member Commit: AppendEventsResult<'state, 'event> -> Task<Result<unit, EventStoreError>>
+//   abstract member LoadStream: Guid -> Task<Result<IStreamDbo, EventStoreError>>
+//   abstract member GetStreamKey: 'event -> Guid
+//
+type ISimpleEventStorage< 'event> =
   abstract member LoadEventRange: Guid * DateTimeOffset * DateTimeOffset -> Task<NonEmptyList<'event> option>
   abstract member LoadEventRangeAcrossStreams: V * V -> Task<'event list>
   abstract member LoadAllEvents: Guid -> Task<NonEmptyList<'event> option>

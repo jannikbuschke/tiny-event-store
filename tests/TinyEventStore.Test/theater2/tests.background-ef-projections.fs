@@ -14,53 +14,53 @@ open TinyEventStore.Simple
 open FsToolkit.ErrorHandling
 open System.Threading.Channels
 open TinyEventStore.EfSimpleStorage.Projection
+open System.Threading
+open TinyEventStore.Ef.Core
 
 let channel, subscription = TinyEventStore.Subscriptions.createChannelSubscription<TheaterEvent,_,_>()
 
 let store () =
   EventStore(system, [], [subscription])
 
-let apply: ProjectionApply<_,_,_> = fun projection db e -> task{
-    printfn "apply"
-    return ()
-  }
-
 let createServices name =
-  let services = ServiceCollection()
-  Directory.CreateDirectory "data" |> ignore
-  services.AddDbContext<EventDbContext>(fun options ->
-    options.UseSqlite($"Data Source=data/test.{name}.sqlite").EnableSensitiveDataLogging().EnableDetailedErrors()
-    |> ignore
-  )
-  |> ignore
-  let provider = services.BuildServiceProvider()
-  use scope = provider.CreateScope()
-  use db = scope.ServiceProvider.GetService<EventDbContext>()
-  db.Database.EnsureDeleted() |> ignore
-  db.Database.EnsureCreated() |> ignore
-  let projectionsHostService = new ProjectionsHostService<TheaterEvent>(provider, channel.Reader)
-  let x = EfProjectionService(provider,backgroundProjection,apply)
-  provider
+   Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+    .ConfigureServices(fun (ctx) (services: IServiceCollection) ->
+        Directory.CreateDirectory "data" |> ignore
+        services.AddDbContext<EventDbContext>(fun options ->
+          options
+            .UseSqlite($"Data Source=data/test.{name}.sqlite")
+            // .EnableSensitiveDataLogging()
+            // .EnableDetailedErrors()
+          |> ignore
+        )
+        |> ignore
+        services.AddScoped<ISimpleEventStorage<TheaterEvent>>(fun p ->
+          let db = p.GetService<EventDbContext>()
+          db.TheaterEventStorage ()
+        ) |> ignore
+        // let src = TokenCancellationSource()
+        services.AddHostedService<ProjectionsHostService<TheaterEvent>>(fun provider ->
+          let projectionsHostService = new ProjectionsHostService<TheaterEvent>(provider, channel.Reader)
+          projectionsHostService.StartAsync(CancellationToken()) |> ignore
+          projectionsHostService
+        ) |> ignore
+        services.AddScoped<IProjectionService<TheaterEvent>>(fun provider ->
+          EfProjectionService(provider, backgroundProjection)
+        ) |> ignore
+        let provider = services.BuildServiceProvider()
+        use scope = provider.CreateScope()
+        use db = scope.ServiceProvider.GetService<EventDbContext>()
+        db.Database.EnsureDeleted() |> ignore
+        db.Database.EnsureCreated() |> ignore
+        ()
+    ).Build()
 
 let ts = DateTimeOffset.Parse "2025-02-02 10:15:00"
 
-// module Expect =
-//   let wantFirst msg l =
-//     match l with
-//     | [] -> failtest msg
-//     | head :: _ -> head
-
-let createContext (services: IServiceProvider) id =
-  // let services = createServices (id.ToString())
+let createContext (services: IServiceProvider) =
   let scope = services.CreateAsyncScope()
   let db = scope.ServiceProvider.GetService<EventDbContext>()
   scope, db, db.TheaterEventStorage()
-
-// let getDb id =
-//   let services = createServices (id.ToString())
-//   let scope = services.CreateAsyncScope()
-//   let db = scope.ServiceProvider.GetService<EventDbContext>()
-//   db
 
 let createEvents details (ctx: CreateEventsContext) =
   details
@@ -78,11 +78,13 @@ let createEvents details (ctx: CreateEventsContext) =
 let tests =
   [
 
-    ftestTask "wip" {
+    ftestTask "restart should restore deleted data" {
       let store = store ()
-      let provider = createServices()
+      let host = createServices()
+      let ct = CancellationToken()
+      let! _ = host.StartAsync(ct)
       let id = "bf0a4037-4591-46ef-a693-d5bb8ab58b25" |> Guid.Parse
-      let scope, db, storage = createContext provider id
+      let scope, _, storage = createContext host.Services
       do!
         store.ApplyEvents(
           storage,
@@ -91,8 +93,48 @@ let tests =
           ts,
           scope.ServiceProvider
         )
+      do! Threading.Tasks.Task.Delay 100
       let db = storage.Db
       let! listItems = db.BackgroundListItems().CountAsync()
+      expect <@ listItems = 1 @>
+
+      db.BackgroundListItems().ExecuteDelete ()|>ignore
+      let! listItems = db.BackgroundListItems().CountAsync()
+      expect <@ listItems = 0 @>
+
+      let scope = host.Services.CreateScope ()
+      let svc = scope.ServiceProvider.GetService<IProjectionService<TheaterEvent>>()
+
+      let ct = CancellationToken()
+      do! svc.Restart ct
+
+      let! listItems = db.BackgroundListItems().CountAsync()
+      expect <@ listItems = 1 @>
+      let! _ = host.StopAsync()
+      ()
+
+    }
+
+    testTask "background projection should create one item on init event" {
+      let store = store ()
+      let host = createServices()
+      let ct = CancellationToken()
+      let! _ = host.StartAsync(ct)
+      let scope = host.Services.CreateScope ()
+      let id = "bf0a4037-4591-46ef-a693-d5bb8ab58b25" |> Guid.Parse
+      let scope, db, storage = createContext host.Services
+      do!
+        store.ApplyEvents(
+          storage,
+          id,
+          createEvents [ TheaterEventDetails.Created "Hello World" ],
+          ts,
+          scope.ServiceProvider
+        )
+      do! Threading.Tasks.Task.Delay 100
+      let db = storage.Db
+      let! listItems = db.BackgroundListItems().CountAsync()
+      let! _ = host.StopAsync()
       expect <@ listItems = 1 @>
 
       // let scope, db, storage = createContext id

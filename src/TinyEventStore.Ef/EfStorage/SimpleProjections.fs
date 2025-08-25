@@ -6,6 +6,7 @@ open System.Threading.Tasks
 open Microsoft.Extensions.Hosting
 open System
 open TinyEventStore.Ef.Core
+open TinyEventStore.Core
 
 type DeriveProjection<'state, 'event, 't, 'db when 'db :> DbContext> =
   {
@@ -54,12 +55,15 @@ type ProjectionState =
     Version: V
   }
 
+type ProjectionApply<'e,'db,'sp> = 'db -> 'sp->'e -> Task
+
 // generic, could be moved to core
 type EfProjection<'s, 'e, 'db> =
   {
     ProjectionDefinition: Projection<'s, 'e>
     // user needs to implement deletion
     OnDeleteProjection: 'db -> Task<unit>
+    Apply: ProjectionApply<'e,'db,'s>
   }
 
 // generic could be moved to core
@@ -101,78 +105,58 @@ let applyEvents projection id state0 events =
     ) (DbSideEffect.DoNothing,state0)
   ops, sx
 
-let restartProjection<'s, 'e, 'sp, 'db when 'db :> DbContext>(
-  storage: ISimpleEventStorage<'s,'e>,
+let restartProjection<'e, 'sp, 'db when 'db :> DbContext and 'sp : not struct>(
+  storage: ISimpleEventStorage<'e>,
   db: 'db,
   efProjection: EfProjection<'sp,'e,'db>) =
   task {
+      let set = db.Set<'sp>()
       do! efProjection.OnDeleteProjection db
       let! events = storage.LoadEventRangeAcrossStreams(0, 500)
-      return events
+      let result =
+        events
         |> List.groupBy storage.GetStreamKey
         |> Seq.map(fun (streamId,events) ->
           applyEvents efProjection.ProjectionDefinition streamId efProjection.ProjectionDefinition.zero events)
+      result |> Seq.iter(fun (o1,o2) ->
+        mapToEfSetOperation  set o1 o2
+        ()
+      )
 
-      // let grouped = events |> List.groupBy storage.GetStreamKey
-      // return
-      //   grouped
-      //   |> Seq.map(fun (streamId,events) ->
-      //     applyEvents efProjection.ProjectionDefinition streamId efProjection.ProjectionDefinition.zero events)
+      printfn "result %A" result
+      return result
+
   }
-
-type ProjectionApply<'e,'db,'sp> = EfProjection<'sp,'e,'db> -> 'db -> 'e -> Task
-
-// let myApply:ProjectionApply<_,EventDb_,_> = fun projection db e -> task {
-//   let backgroundListItems = db.BackgroundListItems()
-//   return ()
-//   }
-
-// let apply<'s, 'e, 'sp, 'db when 'db :> DbContext>(
-//   storage: ISimpleEventStorage<'s,'e>,
-//   db: 'db,
-//   efProjection: EfProjection<'sp,'e,'db>,
-//   e: 'e
-//   ) =
-//   task {
-//       let streamKey = storage.GetStreamKey e
-//       let obj = db.Set<'sp>().FindAsync(streamKey)
-//       do! efProjection.OnDeleteProjection db
-//       let! events = storage.LoadEventRangeAcrossStreams(0, 500)
-//       return events
-//         |> List.groupBy storage.GetStreamKey
-//         |> Seq.map(fun (streamId,events) ->
-//           applyEvents efProjection.ProjectionDefinition streamId efProjection.ProjectionDefinition.zero events)
-//       // let grouped = events |> List.groupBy storage.GetStreamKey
-//       // return
-//       //   grouped
-//       //   |> Seq.map(fun (streamId,events) ->
-//       //     applyEvents efProjection.ProjectionDefinition streamId efProjection.ProjectionDefinition.zero events)
-//   }
 
 type IProjectionService<'e> =
   abstract member Restart: CancellationToken -> Task
   abstract member Apply: 'e * CancellationToken -> Task
 
-// 's is the default projection state
-type EfProjectionService<'s, 'e, 'sp, 'db when 'db :> DbContext>(
+type EfProjectionService<'e, 'sp, 'db when 'db :> DbContext and 'sp : not struct>(
     provider: IServiceProvider,
-    efProjection: EfProjection<'sp,'e,'db>,
-    apply: ProjectionApply<'e,'db,'sp>
+    efProjection: EfProjection<'sp,'e,'db>
   ) =
   interface IProjectionService<'e> with
     member this.Restart _ =
       task {
+        printfn "restart"
         use scope = provider.CreateScope()
-        let storage = scope.ServiceProvider.GetRequiredService<ISimpleEventStorage<'s, 'e>>()
+        let storage = scope.ServiceProvider.GetRequiredService<ISimpleEventStorage<'e>>()
         let db = scope.ServiceProvider.GetRequiredService<'db>()
         let! restartResult = restartProjection(storage, db, efProjection)
+        let r = db.SaveChanges ()
+        printfn "restart done %d" r
         return ()
       }
     member this.Apply(e: 'e, _) = task {
         use scope = provider.CreateScope()
-        let storage = scope.ServiceProvider.GetRequiredService<ISimpleEventStorage<'s, 'e>>()
+        let storage = scope.ServiceProvider.GetRequiredService<ISimpleEventStorage<'e>>()
+        let streamId = storage.GetStreamKey e
+        let! events = storage.LoadAllEvents streamId
+        let state = events |> Option.toList |> List.collect(fun x -> x.List)  |> List.fold efProjection.ProjectionDefinition.evolve efProjection.ProjectionDefinition.zero
         let db = scope.ServiceProvider.GetRequiredService<'db>()
-        do! apply efProjection db e
+        do! efProjection.Apply db state e
+        let r = db.SaveChanges ()
         return ()
       }
 
@@ -181,10 +165,19 @@ type ProjectionsHostService<'e>(provider: IServiceProvider, channel: System.Thre
   override this.ExecuteAsync token =
     task {
       while true do
+        // printfn "reading"
         let! e = channel.ReadAsync token
+        // printfn "read %A" e
         use scope = provider.CreateScope()
         let projectionsService = scope.ServiceProvider.GetRequiredService<IProjectionService<'e>>()
-        do! projectionsService.Apply(e, token)
+        // printfn "service %A" projectionsService
+        // printfn "apply to projection"
+        printfn "apply in background service"
+        try
+          do! projectionsService.Apply(e, token)
+        with e ->
+          printfn "eeror %A" e
+        printfn "apply in background service done"
 
       return ()
 

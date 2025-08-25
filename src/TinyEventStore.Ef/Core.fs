@@ -2,13 +2,8 @@ module TinyEventStore.Ef.Core
 
 open Microsoft.EntityFrameworkCore
 open TinyEventStore
+open TinyEventStore.Core
 
-[<RequireQualifiedAccess>]
-type DbSideEffect =
-  | Create
-  | Update
-  | Delete
-  | DoNothing
 
 type IdConverter<'id, 'rawId> = ('id -> 'rawId) * ('rawId -> 'id)
 type Converter<'value, 'dto> = ('value -> 'dto) * ('dto -> 'value)
@@ -18,6 +13,13 @@ let projectToDbCommand (events: EventEnvelope<'id, 'event, 'header> list) =
     DbSideEffect.Create
   else
     DbSideEffect.Update
+
+let mapToEfSetOperation (db: DbSet<'t>) =
+  function
+  | DbSideEffect.Create -> db.Add >> ignore
+  | DbSideEffect.Update -> db.Update >> ignore
+  | DbSideEffect.Delete -> db.Remove >> ignore
+  | DbSideEffect.DoNothing -> fun _ -> ()
 
 let mapToEfContextOperation (db: DbContext) =
   function
