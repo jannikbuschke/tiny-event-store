@@ -189,7 +189,7 @@ module Core =
           }
         )
 
-      logger.info (
+      logger.debug (
         Log.setMessage "Rehydration result {rehydration_result}"
         >> Log.addParameter result
       )
@@ -380,6 +380,7 @@ type EventStore<'id, 'stream, 'state, 'e, 'c, 'ed, 'ctx
       let! result = result
       for subscription in subscriptions do
         do! subscription ctx result
+      return result
     }
 
   member this.ApplyEvents

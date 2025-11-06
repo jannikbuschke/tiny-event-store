@@ -44,7 +44,7 @@ let rehydrate
           }
       | None -> HydrationResult.NotStarted
 
-    logger.info (
+    logger.debug (
       Log.setMessage "Rehydration result {rehydration_result}"
       >> Log.addParameter result
     )

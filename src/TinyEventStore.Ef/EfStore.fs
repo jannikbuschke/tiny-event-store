@@ -99,18 +99,16 @@ type Configuration() =
       let db = getDb ctx
       updateEventStream2 db operationResult
 
-    let applyEvents (ctx: IServiceProvider) (streamId, events) =
-      taskResult {
-        // assert (events |> Seq.length > 0)
-
-        if events |> Seq.length = 0 then
-          failwith "no events given"
-
-        let! result = appendEvents ctx streamId events
-        updateEventStore2 ctx result
-        applyResultToProjections ctx result
-        return result
-      }
+    // let applyEvents (ctx: IServiceProvider) (streamId, events) =
+    //   taskResult {
+    //     // assert (events |> Seq.length > 0)
+    //     if events |> Seq.length = 0 then
+    //       failwith "no events given"
+    //     let! result = appendEvents ctx streamId events
+    //     updateEventStore2 ctx result
+    //     applyResultToProjections ctx result
+    //     return result
+    //   }
 
     let applyEvents (ctx: IServiceProvider) (streamId, events) =
       taskResult {
