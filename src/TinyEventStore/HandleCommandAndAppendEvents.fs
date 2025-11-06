@@ -11,19 +11,24 @@ let appendEvents<'id, 'state, 'event, 'header, 'sideEffect>
   =
   let oldState = rehydrate aggregate.zero aggregate.evolve currentState
 
-  let lastEventNumber =
-    currentState.Events
-    |> Seq.tryLast
-    |> Option.map _.Version
-    |> Option.defaultValue 0u
+  let lastEventNumber = if currentState.Events.Count > 0 then currentState.Events |> Seq.map _.Version |> Seq.max else 0u
 
-  let newEvents =
-    events
-    |> List.mapi (fun i (evt, header, causationId) ->
-      EventEnvelope.Create(id, evt, header, causationId, ((uint i) + lastEventNumber + 1u)))
+    // |> Seq.sortBy _.Version
+    // |> Seq.tryLast
+    // |> Option.map _.Version
+    // |> Option.defaultValue 0u
 
-  let result = applyEvents aggregate oldState currentState newEvents
-  result
+  events
+  |> List.mapi (fun i (evt, header, causationId) ->
+    EventEnvelope.Create(id, evt, header, causationId, ((uint i) + lastEventNumber + 1u)))
+  |> applyEvents aggregate oldState currentState
+
+  // let newEvents =
+  //   events
+  //   |> List.mapi (fun i (evt, header, causationId) ->
+  //     EventEnvelope.Create(id, evt, header, causationId, ((uint i) + lastEventNumber + 1u)))
+  // let result = applyEvents aggregate oldState currentState newEvents
+  // result
 
 let makeCommandHandler<'id, 'state, 'event, 'header, 'command, 'commandHeader, 'sideEffect>
   (aggregate: Aggregate<'id, 'state, 'event, 'header>)

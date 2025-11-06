@@ -27,15 +27,13 @@ let loadStream (db: DbContext) (id, version) =
   | None ->
     db
       .Set<StorableStream<'id, 'event, 'header>>()
-      // ORDER children by
-      .Include(fun x -> x.Children)
+      .Include(_.Children.OrderBy(_.Version))
       .AsNoTracking()
       .SingleOrDefaultAsync(fun x -> x.Id = id)
   | Some version ->
     db
       .Set<StorableStream<'id, 'event, 'header>>()
-      // ORDER children by
-      .Include(fun x -> x.Children.Where(fun c -> c.Version <= version))
+      .Include(_.Children.OrderBy(_.Version).Where(fun c -> c.Version <= version))
       .AsNoTracking()
       .SingleOrDefaultAsync(fun x -> x.Id = id)
 

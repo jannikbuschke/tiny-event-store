@@ -40,27 +40,15 @@
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.*"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.*"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.*">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 
-<!--    <ItemGroup>-->
-<!--        <PackageReference Include="FSharp.SystemTextJson" Version="1.2.42"/>-->
-<!--    </ItemGroup>-->
-
-<!--    <ItemGroup>-->
-<!--        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.2">-->
-<!--            <PrivateAssets>all</PrivateAssets>-->
-<!--            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>-->
-<!--        </PackageReference>-->
-<!--    </ItemGroup>-->
-
     <ItemGroup>
         <ProjectReference Include="..\TinyEventStore\TinyEventStore.fsproj"/>
     </ItemGroup>
 
-<!--    <Import Project="..\..\.paket\Paket.Restore.targets"/>-->
 </Project>

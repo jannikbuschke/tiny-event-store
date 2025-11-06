@@ -1158,8 +1158,10 @@ module LogProvider =
 
         let logFunc =
             match loggerProvider with
-            | Some loggerProvider -> loggerProvider.GetLogger(name)
-            | None -> noopLogger
+            | Some loggerProvider ->
+              loggerProvider.GetLogger(name)
+            | None ->
+              noopLogger
 
         { new ILog with
             member x.Log = logFunc
