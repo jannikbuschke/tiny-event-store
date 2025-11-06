@@ -5,7 +5,6 @@ open System
 open FsToolkit.ErrorHandling
 open System.Threading.Tasks
 
-
 let private logger = LogProvider.getLoggerByName "TinyEventStore.CoreModule"
 
 let private error details message =
