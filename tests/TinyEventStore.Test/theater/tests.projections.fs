@@ -22,14 +22,14 @@ let createServices name =
 
   let provider = services.BuildServiceProvider()
   use scope = provider.CreateScope()
-  use db = scope.ServiceProvider.GetService<EventDbContext>()
+  use db = scope.ServiceProvider.GetRequiredService<EventDbContext>()
   // let db = new EventDbContext(options.Options)
   db.Database.EnsureDeleted() |> ignore
   db.Database.EnsureCreated() |> ignore
   provider
 
 let getStorage (services: IServiceProvider) =
-  let db = services.GetService<EventDbContext>()
+  let db = services.GetRequiredService<EventDbContext>()
   EfStorage<TheaterStreamId, Guid, TheaterState, TheaterEventDetails, TheaterCommand, EventDbContext>(
     db,
     efStorageOptions

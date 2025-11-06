@@ -45,16 +45,16 @@ let bootstrapTestContext<'db when 'db :> DbContext> (dbName: string) =
 
   let serviceProvider = services.BuildServiceProvider()
 
-  serviceProvider.GetService<'db>().Database.EnsureDeleted() |> ignore
+  serviceProvider.GetRequiredService<'db>().Database.EnsureDeleted() |> ignore
 
-  serviceProvider.GetService<'db>().Database.EnsureCreated() |> ignore
+  serviceProvider.GetRequiredService<'db>().Database.EnsureCreated() |> ignore
 
   { Services = serviceProvider
     CreateHttpContext =
       fun () ->
         let scope0 = serviceProvider.CreateScope()
         DefaultHttpContext(RequestServices = scope0.ServiceProvider)
-    Teardown = fun () -> serviceProvider.GetService<'db>().Database.EnsureDeleted() |> ignore }
+    Teardown = fun () -> serviceProvider.GetRequiredService<'db>().Database.EnsureDeleted() |> ignore }
 
 let fesTest<'db when 'db :> DbContext> name (f: TestContext -> Task<Result<unit, string>>) =
   ftestTask name {

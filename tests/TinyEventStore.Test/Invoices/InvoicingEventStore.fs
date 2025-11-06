@@ -47,8 +47,8 @@ let store=Configuration.Configure<Id, State, Event, EventHeader, Command, unit, 
 
 let handleCommand (ctx: HttpContext) (streamId: Id, command: Command) =
   taskResult {
-    let logger = ctx.RequestServices.GetService<ILogger<string>>()
-    let db = ctx.RequestServices.GetService<InvoicingDb>()
+    let logger = ctx.RequestServices.GetRequiredService<ILogger<string>>()
+    let db = ctx.RequestServices.GetRequiredService<InvoicingDb>()
 
     let commandEnvelope = CommandEnvelope.New(streamId, command, ())
 

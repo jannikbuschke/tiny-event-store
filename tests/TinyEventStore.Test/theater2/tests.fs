@@ -24,13 +24,13 @@ let createServices name =
 
   let provider = services.BuildServiceProvider()
   use scope = provider.CreateScope()
-  use db = scope.ServiceProvider.GetService<EventDbContext>()
+  use db = scope.ServiceProvider.GetRequiredService<EventDbContext>()
   db.Database.EnsureDeleted() |> ignore
   db.Database.EnsureCreated() |> ignore
   provider
 
 let getStorage (services: IServiceProvider) =
-  let db = services.GetService<EventDbContext>()
+  let db = services.GetRequiredService<EventDbContext>()
   EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(db, Store.efStorageOptions, _.StreamId)
 
 let printSubscription: Subscription<_, _, _> =

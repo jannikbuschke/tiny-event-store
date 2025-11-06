@@ -35,7 +35,7 @@ let createServices name =
         )
         |> ignore
         services.AddScoped<ISimpleEventStorage<TheaterEvent>>(fun p ->
-          let db = p.GetService<EventDbContext>()
+          let db = p.GetRequiredService<EventDbContext>()
           db.TheaterEventStorage ()
         ) |> ignore
         // let src = TokenCancellationSource()
@@ -49,7 +49,7 @@ let createServices name =
         ) |> ignore
         let provider = services.BuildServiceProvider()
         use scope = provider.CreateScope()
-        use db = scope.ServiceProvider.GetService<EventDbContext>()
+        use db = scope.ServiceProvider.GetRequiredService<EventDbContext>()
         db.Database.EnsureDeleted() |> ignore
         db.Database.EnsureCreated() |> ignore
         ()
@@ -59,7 +59,7 @@ let ts = DateTimeOffset.Parse "2025-02-02 10:15:00"
 
 let createContext (services: IServiceProvider) =
   let scope = services.CreateAsyncScope()
-  let db = scope.ServiceProvider.GetService<EventDbContext>()
+  let db = scope.ServiceProvider.GetRequiredService<EventDbContext>()
   scope, db, db.TheaterEventStorage()
 
 let createEvents details (ctx: CreateEventsContext) =
@@ -103,7 +103,7 @@ let tests =
       expect <@ listItems = 0 @>
 
       let scope = host.Services.CreateScope ()
-      let svc = scope.ServiceProvider.GetService<IProjectionService<TheaterEvent>>()
+      let svc = scope.ServiceProvider.GetRequiredService<IProjectionService<TheaterEvent>>()
 
       let ct = CancellationToken()
       do! svc.Restart ct

@@ -44,11 +44,11 @@ services.AddLogging(fun loggingbuilder -> loggingbuilder.AddSerilog(Serilog.Log.
 |> ignore
 
 let serviceProvider = services.BuildServiceProvider()
-let time = serviceProvider.GetService<TimeProvider>()
+let time = serviceProvider.GetRequiredService<TimeProvider>()
 
-serviceProvider.GetService<InvoicingDb>().Database.EnsureDeleted() |> ignore
+serviceProvider.GetRequiredService<InvoicingDb>().Database.EnsureDeleted() |> ignore
 
-serviceProvider.GetService<InvoicingDb>().Database.EnsureCreated() |> ignore
+serviceProvider.GetRequiredService<InvoicingDb>().Database.EnsureCreated() |> ignore
 
 [<Fact>]
 let ``create and update draft and expect storable stream and event`` () =
@@ -83,7 +83,7 @@ let ``create and update draft and expect storable stream and event`` () =
 
     let! state = MyTestDomain.Invoicing.EventStore.store.rehydrateLatest2 scope1.ServiceProvider id
 
-    let db = scope1.ServiceProvider.GetService<InvoicingDb>()
+    let db = scope1.ServiceProvider.GetRequiredService<InvoicingDb>()
 
     let! streamCount =
       db
@@ -103,7 +103,7 @@ let ``create and update draft and expect storable stream and event`` () =
     let deleteDb = false
 
     if deleteDb = true then
-      serviceProvider.GetService<InvoicingDb>().Database.EnsureDeleted() |> ignore
+      serviceProvider.GetRequiredService<InvoicingDb>().Database.EnsureDeleted() |> ignore
 
     return ()
   }
