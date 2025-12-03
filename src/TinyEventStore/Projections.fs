@@ -8,7 +8,7 @@ type EventProgression =
     LastSeqId: int64 option
     LastUpdated: DateTimeOffset option }
 
-let reset (progression) =
+let reset progression =
   { progression with
       LastSeqId = None
       LastUpdated = None }

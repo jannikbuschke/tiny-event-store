@@ -95,7 +95,7 @@ type EventDbContext(options) =
       modelBuilder.AddSharedEventStorage<Guid, Guid, Discriminator>(
         "theater_shared",
         fun o ->
-          o.WithStreamType<TheaterStreamId, Guid,   TheaterStream, TheaterEventDetails>(
+          o.WithStreamType<TheaterStreamId, Guid, TheaterStream, TheaterEventDetails>(
             Discriminator.Theater,
             None
           )

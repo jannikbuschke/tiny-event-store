@@ -131,7 +131,6 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
         }
       let updateStream v =
         taskResult {
-          printfn "update stream"
           let! stream = this.GetStream v.Id
           let! stream =
             stream
@@ -155,7 +154,7 @@ type EfSimpleStorage<'state, 'e, 'c, 'db when 'db :> DbContext>(db: 'db, options
         )
         let! _ = db.SaveChangesAsync()
         let! result = db.SaveChangesAsync()
-        logger.debug (Log.setMessage "SaveChanges {count}" >> Log.addParameter result)
+        logger.info (Log.setMessage "SaveChanges {count}" >> Log.addParameter result)
         return ()
 
       }

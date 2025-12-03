@@ -1,11 +1,61 @@
 namespace TinyEventStore.Simple
 
+open System
+open TinyEventStore
 open TinyEventStore.InterfacesSimple.Core
 open TinyEventStore.InterfacesSimple
 open System.Threading.Tasks
 open FsToolkit.ErrorHandling
 
 type Subscription<'state, 'e, 'ctx> = 'ctx -> AppendEventsResult<'state, 'e> -> Task<unit>
+
+type IEventStore<'s, 'e, 'c, 'ctx> =
+  abstract Rehydrate: Guid -> Task<HydrationResult<'s, 'e>>
+  abstract ApplyEvents:
+    Guid * (CreateEventsContext -> NonEmptyList<'e>) * DateTimeOffset * 'ctx * Causation option -> TaskResult<AppendEventsResult<'s, 'e>, EventStoreError>
+  abstract ApplyCommand: Guid * DateTimeOffset * 'c * 'ctx -> TaskResult<AppendEventsResult<'s, 'e>, EventStoreError>
+
+module Store =
+  let create
+    (
+      system: EventStoreDefinition<'state, 'e, 'c>,
+      onCommitting: OnCommittingEventHandler<_, _, 'ctx> seq,
+      subscriptions: Subscription<'state, 'e, 'ctx> list
+    )
+    (storage: ISimpleEventStorage<_>)
+    =
+    let handler ctx = createHandler system onCommitting ctx
+    let rehydrate id =
+      rehydrate system.aggregate storage system.getEventVersion id
+    let applyEvents
+      id
+      (events: CreateEventsContext -> NonEmptyList<'e>)
+      ts
+      (ctx: 'ctx)
+      (causation: TinyEventStore.Causation option)
+      =
+      taskResult {
+        let handler = handler ctx
+        let! result = handler.applyEvents storage (id, ts) events
+        for subscription in subscriptions do
+          do! subscription ctx result
+        return result
+      }
+
+    let applyCommand (id, dt) command (ctx: 'ctx) =
+      taskResult {
+        let handler = handler ctx
+        let! result = handler.applyCommand storage (id, dt) command
+        for subscription in subscriptions do
+          do! subscription ctx result
+        return result
+      }
+    { new IEventStore<'state, 'e, 'c, 'ctx> with
+        member _.Rehydrate id = rehydrate id
+        member _.ApplyEvents(id, events, ts, ctx, ?causation) = applyEvents id events ts ctx causation
+        member _.ApplyCommand(id, dt, command, ctx) =
+          applyCommand (id,dt) command ctx
+    }
 
 // this class is propably not needed
 // just a function returning a function that accepts ctx or two, one for apply event, one for applyCommand
@@ -51,13 +101,10 @@ type EventStore<'state, 'e, 'c, 'ctx>
     taskResult {
       let handler = handler ctx
       let! result = handler.applyCommand store (id, dt) command
-
       for subscription in subscriptions do
         do! subscription ctx result
-
       return result
     }
-
 
 // module InmemEventStorage =
 //

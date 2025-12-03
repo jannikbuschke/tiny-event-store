@@ -24,8 +24,17 @@ and StreamDto<'streamIdRaw, 'event when 'streamIdRaw: equality>() =
 
   member val Children = Unchecked.defaultof<ICollection<EventDto<'streamIdRaw, 'event>>> with get, set
 
-  static member Create(id:'id,version:V,isDeleted:bool,created:DateTimeOffset,modified:DateTimeOffset,children)=
-    StreamDto(Id=id,Version=version,IsDeleted=isDeleted,Created=created,Modified=modified,Children=children)
+  static member Create
+    (id: 'id, version: V, isDeleted: bool, created: DateTimeOffset, modified: DateTimeOffset, children)
+    =
+    StreamDto(
+      Id = id,
+      Version = version,
+      IsDeleted = isDeleted,
+      Created = created,
+      Modified = modified,
+      Children = children
+    )
 
 and CausationType =
   | Command = 1uy

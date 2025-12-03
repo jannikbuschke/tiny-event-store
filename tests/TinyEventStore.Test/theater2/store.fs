@@ -7,15 +7,9 @@ open TinyEventStore.Json
 open TinyEventStore.InterfacesSimple.Core
 open Decider
 open Microsoft.Extensions.DependencyInjection
-open TinyEventStore.Check
 open Expecto
-open System
-open Decider
+
 open TinyEventStore.InterfacesSimple
-open TinyEventStore.EfSimpleStorage
-open Microsoft.EntityFrameworkCore
-open Microsoft.Extensions.DependencyInjection
-open System.IO
 open TinyEventStore.Simple
 open TinyEventStore.EfSimpleStorage.Projection
 open TinyEventStore.Ef.Core
@@ -46,7 +40,6 @@ let efStorageOptions: EventStorageOptions<TheaterEvent> =
         )
   }
 
-
 [<CLIMutable>]
 type StateListItem =
   {
@@ -54,12 +47,12 @@ type StateListItem =
     Name: string
   }
 
-let printSubscription: Subscription<_, _, _> =
-  fun _ x ->
-    task {
-      printfn "subscription %A" x
-      return ()
-    }
+// let printSubscription: Subscription<_, _, _> =
+//   fun _ x ->
+//     task {
+//       printfn "subscription %A" x
+//       return ()
+//     }
 
 let deriveListItem (eventResult: AppendEventsResult<TheaterState, _>) =
   {
@@ -93,12 +86,12 @@ type EventDbContext(options, serviceProvider: IServiceProvider) =
     EfSimpleStorage<TheaterState, TheaterEvent, TheaterCommand, EventDbContext>(this, efStorageOptions, _.StreamId)
 
   member this.ListItems() = this.Set<StateListItem>()
-  member this.BackgroundListItems() = this.Set<Aggregate.BackgroundListItem>()
+  member this.BackgroundListItems() =
+    this.Set<Aggregate.BackgroundListItem>()
 
   override _.OnModelCreating(modelBuilder: ModelBuilder) : unit =
-    modelBuilder.Entity<Aggregate.BackgroundListItem>(fun entity ->
-      entity.ToTable "list-background" |> ignore
-    ) |> ignore
+    modelBuilder.Entity<Aggregate.BackgroundListItem>(fun entity -> entity.ToTable "list-background" |> ignore)
+    |> ignore
 
     modelBuilder.Entity<StateListItem>(fun entity ->
       entity.ToTable "list"
@@ -111,26 +104,31 @@ type EventDbContext(options, serviceProvider: IServiceProvider) =
     let _ =
       modelBuilder.AddSharedEventStorage<Discriminator>(
         "theater_shared",
-        fun o -> o.WithStreamType<TheaterEvent>(Discriminator.Theater, None)
+        _.WithStreamType<TheaterEvent>(Discriminator.Theater, None)
       )
     ()
 
 
-let backgroundProjection: EfProjection<Aggregate.BackgroundListItem,TheaterEvent,EventDbContext> = {
-  ProjectionDefinition = Aggregate.backgroundProjectionDefinition
-  OnDeleteProjection = fun db -> task{
-    let! _ = db.BackgroundListItems().ExecuteDeleteAsync()
-    return ()
+let backgroundProjection: EfProjection<Aggregate.BackgroundListItem, TheaterEvent, EventDbContext> =
+  {
+    ProjectionDefinition = Aggregate.backgroundProjectionDefinition
+    OnDeleteProjection =
+      fun db ->
+        task {
+          let! _ = db.BackgroundListItems().ExecuteDeleteAsync()
+          return ()
+        }
+    Apply =
+      fun db s e ->
+        task {
+          let def = backgroundProjection.ProjectionDefinition
+          // let def = projection.ProjectionDefinition
+          let set = db.BackgroundListItems()
+          let s1 = def.evolve s e
+          let op1 = def.Op(s, e)
+          printfn "op %A" op1
+          let op = def.Op(s, e) |> mapToEfSetOperation set
+          op s1
+          return ()
+        }
   }
-  Apply = fun db s e -> task{
-    let def = backgroundProjection.ProjectionDefinition
-    // let def = projection.ProjectionDefinition
-    let set = db.BackgroundListItems()
-    let s1 = def.evolve s e
-    let op1 = def.Op(s,e)
-    printfn "op %A" op1
-    let op = def.Op(s,e) |> mapToEfSetOperation set
-    op s1
-    return ()
-  }
-}

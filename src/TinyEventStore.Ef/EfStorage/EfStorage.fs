@@ -75,10 +75,7 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
   let logger = LogProvider.getLoggerByName "TinyEventStore.EfStorage"
   let toRawStreamId = options.StreamId |> fst
   let toStreamId = options.StreamId |> snd
-
-  // let eventConverter = options.Event
   let toEventEnvelope (dto: Dtos.EventDto<_, _>) =
-    // logger.warn(Log.setMessage "to event envelope")|>ignore
     if box dto = null then
       failwith "dto is null"
     else
@@ -202,19 +199,17 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
 
     member this.LoadStream(id: 'streamId) =
       task {
-        logger.info (Log.setMessage "Loading stream {stream_id}" >> Log.addParameter id)
-        |> ignore
+        logger.debug (Log.setMessage "Loading stream {stream_id}" >> Log.addParameter id)
         let! stream = this.GetStream id
         if box stream = null then
-          logger.info (Log.setMessage "Stream {stream_id} not found" >> Log.addParameter id)
-          |> ignore
+          logger.debug (Log.setMessage "Stream {stream_id} not found" >> Log.addParameter id)
           return None
         // return Error(EventStoreError.New(EventStoreErrorDetails.NotFound, None))
         else
           let! events = this.QueryStreamEvents(id).ToListAsync()
 
           let events = events |> Seq.map toEventEnvelope |> Seq.toList
-          logger.info (
+          logger.debug (
             Log.setMessage "Loaded events for {stream_id}"
             >> Log.addParameter id
             >> Log.addContext "Events" events
@@ -226,10 +221,6 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
               Events = events
             }
             |> Some
-
-      // let! x = (this :> IEventStorage<_, _, _, _, _>).LoadRequiredStream id
-      // printfn "loaded stream %A" x
-      // return x |> Option.ofResult
 
       }
 
@@ -302,7 +293,7 @@ type EfStorage<'streamId, 'streamIdRaw, 'state, 'eventDetails, 'c, 'db
 
         let! result = db.SaveChangesAsync()
 
-        logger.debug (Log.setMessage "SaveChanges {count}" >> Log.addParameter result)
+        logger.info (Log.setMessage "SaveChanges {count}" >> Log.addParameter result)
 
         return ()
       }
@@ -422,14 +413,3 @@ type ModelBuilderExtensions() =
       ty.Entity<Dtos.EventBaseDto<'eventIdRaw>>().HasDiscriminator<'tDiscriminator>("Type")
     configure (ConfigureStreamHelper<'streamIdRaw, 'eventIdRaw, 'tDiscriminator>(ty, streamEntity, eventEntity))
     ()
-
-// [<Extension>]
-// static member AddSharedEventStorage<'tDiscriminator>
-//   (
-//     ty: ModelBuilder,
-//     tablePrefix: string,
-//     // options: EventStorageOptions<'streamId, 'streamIdRaw, 'id, 'idraw>,
-//     // system: System<'state, 'e, 'ed, 'c>,
-//     configure: ConfigureStreamHelper<Guid, Guid, 'tDiscriminator> -> unit
-//   ) =
-//   ty.AddSharedEventStorage<Guid, Guid, 'tDiscriminator>(tablePrefix, configure)

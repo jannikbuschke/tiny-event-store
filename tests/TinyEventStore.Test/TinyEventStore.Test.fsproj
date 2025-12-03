@@ -10,8 +10,8 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="8.4.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Inmemory" Version="8.*"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.*"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Inmemory" Version="9.*"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.*"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -85,7 +85,7 @@
 <!--            <PrivateAssets>all</PrivateAssets>-->
 <!--            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>-->
 <!--        </PackageReference>-->
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.*"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.*"/>
 <!--        <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.*"/>-->
     </ItemGroup>
 

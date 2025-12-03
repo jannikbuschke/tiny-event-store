@@ -13,19 +13,11 @@ module V =
 
 type Evolve<'s, 'e> = 's -> 'e -> 's
 
-type CreateEventsContext =
-  {
-    StreamId: Guid
-    TimeStamp: DateTimeOffset
-    Version: V
-  }
-
 type NonEmptyList<'t> =
   {
     Head: 't
     Tail: 't list
   }
-
   member this.List = this.Head :: this.Tail
   member this.Last() =
     match this.Tail with
@@ -48,6 +40,21 @@ module NonEmptyList =
       Tail = list.Tail
     }
 
+type CreateEventsContext =
+  {
+    StreamId: Guid
+    TimeStamp: DateTimeOffset
+    Version: V
+  }
+
+  member this.CreateMultiple(events, f) =
+    events
+    |> List.mapi (fun i e ->
+      let ts = this.TimeStamp.AddMicroseconds i
+      f e (Guid.CreateVersion7(ts)) (V.incrementBy (this.Version, i + 1)) ts
+    )
+    |> NonEmptyList.UnsafeFrom
+
 type Decide<'s, 'c, 'e> = CreateEventsContext -> 's -> 'c -> Result<NonEmptyList<'e>, string>
 type IsDeleted<'s, 'e> = 's -> 'e -> bool
 type IsInitialiser<'m> = 'm -> bool
@@ -66,7 +73,8 @@ type Projection<'s, 'e> =
     isDeleting: IsDeleted<'s, 'e>
     isInitializer: IsInitialiser<'e>
   }
-  member this.Op(s:'s,e:'e)=
+
+  member this.Op(s: 's, e: 'e) =
     let isNew = this.isInitializer e
     let shouldDelete = this.isDeleting s e
     if isNew && shouldDelete then
@@ -124,6 +132,7 @@ type ApplyResult = Task<Result<unit, EventStoreError>>
 
 type AppendEventsResult<'state, 'e> =
   {
+    /// StreamId
     Id: Guid
     Version: V
     State: 'state
@@ -152,6 +161,12 @@ type HydrationResult<'s, 'e> =
     | NotStarted -> Error()
     | Value value -> Ok value
 
+module Result =
+  let requireHydrationValue v =
+    match v with
+    | HydrationResult.NotStarted -> Error "HydrationResult is NotStarted"
+    | HydrationResult.Value v -> Ok v
+
 type IStreamDbo =
   abstract member Id: Guid
   abstract member Version: V
@@ -166,7 +181,7 @@ type IStreamDbo =
 //   abstract member LoadStream: Guid -> Task<Result<IStreamDbo, EventStoreError>>
 //   abstract member GetStreamKey: 'event -> Guid
 
-type ISimpleEventStorage< 'event> =
+type ISimpleEventStorage<'event> =
   abstract member LoadEventRange: Guid * DateTimeOffset * DateTimeOffset -> Task<NonEmptyList<'event> option>
   abstract member LoadEventRangeAcrossStreams: V * V -> Task<'event list>
   abstract member LoadAllEvents: Guid -> Task<NonEmptyList<'event> option>

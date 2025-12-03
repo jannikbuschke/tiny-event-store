@@ -17,7 +17,7 @@ open TinyEventStore.EfSimpleStorage.Projection
 open System.Threading
 open TinyEventStore.Ef.Core
 
-let channel, subscription = TinyEventStore.Subscriptions.createChannelSubscription<TheaterEvent,_,_>()
+let channel, subscription = TinyEventStore.Subscriptions.createChannelSubscription<TheaterEvent,TheaterState,IServiceProvider>()
 
 let store () =
   EventStore(system, [], [subscription])
